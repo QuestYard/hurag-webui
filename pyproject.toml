@@ -19,7 +19,11 @@ dependencies = [
     "pyyaml>=6.0.3",
     "uuid6>=2025.0.1",
     "uvicorn>=0.38.0",
+    "hurag",
 ]
+
+[project.scripts]
+init-db = "hurag_webui.init_cli:main"
 
 [build-system]
 requires = ["uv_build>=0.9.13,<0.10.0"]
@@ -30,4 +34,14 @@ dev = [
     "jupyter>=1.1.1",
     "matplotlib>=3.10.7",
 ]
+
+[tool.uv]
+required-environments = [
+    "sys_platform == 'darwin' and platform_machine == 'x86_64'",
+    "sys_platform == 'win32'",
+    "sys_platform == 'linux'",
+]
+
+[tool.uv.sources]
+hurag = { path = "../HuRAG", editable = true }
 

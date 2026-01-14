@@ -1,4 +1,4 @@
-from .kernel import logger
+from . import logger
 from .models import User, Citation, Message
 from .services import login
 from .viewers import (
@@ -50,9 +50,7 @@ app.mount("/static", StaticFiles(directory=static_dir), name="static")
 # Get storage secret from environment
 storage_secret = os.environ.get("STORAGE_SECRET")
 if not storage_secret:
-    logger().warning(
-        "STORAGE_SECRET is not set. Using a default (insecure) value."
-    )
+    logger.warning("STORAGE_SECRET is not set. Using a default (insecure) value.")
     storage_secret = "default_secret_please_change"
 
 # --- NiceGUI App Setup ---
@@ -61,7 +59,7 @@ if not storage_secret:
 # This is the production server entry point (e.g., via `gunicorn`)
 ui.run_with(
     app=app,
-    title="HuRAG 2.0 Chatbot",
+    title="HuRAG WebUI - A ChatBot",
     favicon=asset("favicon.ico"),
     storage_secret=storage_secret,
 )
@@ -84,7 +82,7 @@ async def root():
     ):
         # 1. Title and waiting spinner
         with ui.row().classes('items-center gap-2'):
-            ui.label('HuRAG 2.0 - 您身边的领域知识专家').classes('text-h6')
+            ui.label('HuRAG - 您身边的领域知识专家').classes('text-h6')
             waiting_spinner = ui.spinner('bars', size='sm', color='zinc-500')
             waiting_spinner.set_visibility(False)
         # 2. Citation Button and Badge
@@ -686,17 +684,15 @@ async def root():
     ):
         ui_app.storage.user["current_user"] = User().model_dump()
         User_logged_in.emit("Guest")
-        logger().info("No saved user, go on as Guest.")
+        logger.info("No saved user, go on as Guest.")
     else:
         user = login(ui_app.storage.user["current_user"]["account"])
         if user:
             ui_app.storage.user["current_user"] = user.model_dump()
-            logger().info(
-                f"User {user.username}({user.account}) logged in."
-            )
+            logger.info(f"User {user.username}({user.account}) logged in.")
         else:
             ui_app.storage.user["current_user"] = User().model_dump()
-            logger().info("Saved user is invalid, resetting to Guest.")
+            logger.info("Saved user is invalid, resetting to Guest.")
         User_logged_in.emit(user.account)
 
     # cached citations, {id: citation, ...}
@@ -721,7 +717,7 @@ async def root():
 def start():
     """Development server entry point"""
     ui.run(
-        title="HuRAG 2.0 Chatbot [DEV]",
+        title="HuRAG WebUI - A ChatBot [DEV]",
         host="0.0.0.0",
         port=8082,
         reload=True,

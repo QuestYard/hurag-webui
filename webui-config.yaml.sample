@@ -1,5 +1,4 @@
-# Configurations for HuRAG 2.0 WebUI application
-# Every field must be filled appropriately, no defaults are provided here.
+# Configurations for HuRAG WebUI application
 
 # MariaDB/MySQL database connector
 mariadb:
@@ -7,11 +6,10 @@ mariadb:
   port:       3306
   user:
   password:
-  database:   hurag2_webui
+  database:   hurag_webui
 
-# HuRAG 2.0 API Server
-api:
-  url:        http://localhost:5002
+# Dependencies
+services:
   sso:
   ctx_size:   tiny  # tiny or medium or large
 

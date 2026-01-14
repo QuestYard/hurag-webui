@@ -157,7 +157,7 @@ async def chat_with_backend(
 
     content = ""
     if mode:
-        from ..constants import create_rag_prompt
+        from ..prompts import create_rag_prompt
         prompt = create_rag_prompt(
             query=message,
             knowledge_list=knowledge_list,
