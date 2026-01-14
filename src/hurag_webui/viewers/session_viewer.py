@@ -14,6 +14,7 @@ from .chat_viewer import (
 
 from nicegui import ui
 
+
 def show_session_history(sessions: list[Session], container: ui.column) -> None:
     """
     Show session history in the given container.
@@ -29,60 +30,59 @@ def show_session_history(sessions: list[Session], container: ui.column) -> None:
     with container:
         for session in sessions:
             with ui.row().classes(
-                'w-full items-center no-wrap rounded-lg py-2 pr-2 '
-                'hover:bg-neutral-200'
+                "w-full items-center no-wrap rounded-lg py-2 pr-2 hover:bg-neutral-200"
             ):
                 # 1. Main button(link) for loading session
-                with ui.label(session.title).classes(
-                    'flex-grow min-w-0 rounded-lg pl-2 cursor-pointer '
-                    'text-ellipsis no-underline text-gray-600 '
-                    'whitespace-nowrap overflow-hidden text-body2 '
-                ).on(
-                    'click',
-                    lambda e, sid=session.id: History_session_clicked.emit(sid)
+                with (
+                    ui.label(session.title)
+                    .classes(
+                        "flex-grow min-w-0 rounded-lg pl-2 cursor-pointer "
+                        "text-ellipsis no-underline text-gray-600 "
+                        "whitespace-nowrap overflow-hidden text-body2 "
+                    )
+                    .on(
+                        "click",
+                        lambda e, sid=session.id: History_session_clicked.emit(sid),
+                    )
                 ):
-                    ui.tooltip(session.title).classes('text-caption')
+                    ui.tooltip(session.title).classes("text-caption")
                 # 2. More options button with a context menu
-                with ui.button(icon='sym_o_more_horiz').props(
-                    'flat size=sm round dense color=gray-600'
-                ).classes(
-                    'opacity-0 hover:opacity-100 transition-opacity'
+                with (
+                    ui.button(icon="sym_o_more_horiz")
+                    .props("flat size=sm round dense color=gray-600")
+                    .classes("opacity-0 hover:opacity-100 transition-opacity")
                 ):
-                    with ui.menu().classes('text-gray-700'):
+                    with ui.menu().classes("text-gray-700"):
                         with ui.menu_item(
-                            on_click=lambda e, i=session.id:
-                                Edit_session_title_clicked.emit(i),
+                            on_click=lambda e,
+                            i=session.id: Edit_session_title_clicked.emit(i),
                         ):
-                            with ui.row().classes('items-center'):
-                                ui.icon('sym_o_edit').props(
-                                    'color=gray-700 size=20px'
-                                )
-                                ui.label('修改标题')
+                            with ui.row().classes("items-center"):
+                                ui.icon("sym_o_edit").props("color=gray-700 size=20px")
+                                ui.label("修改标题")
                         with ui.menu_item(
-                            on_click=lambda e, i=session.id:
-                                Pin_session_clicked.emit(i),
+                            on_click=lambda e, i=session.id: Pin_session_clicked.emit(
+                                i
+                            ),
                         ):
-                            with ui.row().classes('items-center'):
-                                ui.icon('sym_o_push_pin').props(
-                                    'color=gray-700 size=20px'
+                            with ui.row().classes("items-center"):
+                                ui.icon("sym_o_push_pin").props(
+                                    "color=gray-700 size=20px"
                                 )
-                                ui.label('置顶')
+                                ui.label("置顶")
                         with ui.menu_item(
-                            on_click=lambda e, i=session.id:
-                                Delete_session_clicked.emit(i),
+                            on_click=lambda e,
+                            i=session.id: Delete_session_clicked.emit(i),
                         ):
-                            with ui.row().classes('items-center'):
-                                ui.icon('sym_o_delete').props(
-                                    'size=20px'
-                                ).classes('text-red-500')
-                                ui.label('删除').classes(
-                                    'text-red-500'
+                            with ui.row().classes("items-center"):
+                                ui.icon("sym_o_delete").props("size=20px").classes(
+                                    "text-red-500"
                                 )
+                                ui.label("删除").classes("text-red-500")
+
 
 async def join_history_session(
-    session_id: str,
-    container: ui.column,
-    username: str
+    session_id: str, container: ui.column, username: str
 ) -> tuple[dict[str, list[str]], list[Message]]:
     """
     Join a history session, display its messages in the given container, and
@@ -104,12 +104,12 @@ async def join_history_session(
     )
 
     container.clear()
-    container.classes(add='flex-grow overflow-y-auto')
+    container.classes(add="flex-grow overflow-y-auto")
     messages = load_messages_by_session(session_id)
 
     with container:
         for message in messages:
-            if message.role == 'user':
+            if message.role == "user":
                 await display_user_message(
                     message.content,
                     username,
@@ -128,6 +128,7 @@ async def join_history_session(
     await scroll_to_bottom(container)
 
     return load_citation_ids_by_session(session_id), messages
+
 
 async def session_browser(
     user_id: str,
@@ -151,6 +152,7 @@ async def session_browser(
     session_ids = None
 
     last_session_id = None
+
     # session_brief_batch as: [(id, title, user_id, created_ts, content), ...]
     async def check():
         nonlocal last_session_id
@@ -165,68 +167,75 @@ async def session_browser(
                     tmr.deactivate()
                     with browser_card:
                         ui.label("没有更多对话了").classes(
-                            'mx-auto text-gray-500 py-4 text-caption'
+                            "mx-auto text-gray-500 py-4 text-caption"
                         )
         except TimeoutError:
-            pass    # client might have disconnected
+            pass  # client might have disconnected
 
     async def show_batch(batch: list[dict]):
         with browser_card:
             for s in batch:
-                with ui.column().classes(
-                    'w-full hover:bg-gray-100 cursor-pointer rounded-lg '
-                    'gap-0 p-2'
-                ).on(
-                    'click',
-                    lambda e, sid=s[0]: session_clicked_callback(sid),
+                with (
+                    ui.column()
+                    .classes(
+                        "w-full hover:bg-gray-100 cursor-pointer rounded-lg gap-0 p-2"
+                    )
+                    .on(
+                        "click",
+                        lambda e, sid=s[0]: session_clicked_callback(sid),
+                    )
                 ):
-                    with ui.row().classes('justify-between items-center'):
-                        ui.label(s[1]).classes('p-2 font-semibold')
-                        ui.label(
-                            s[3].strftime('%Y-%m-%d %H:%M')
-                        ).classes(
-                            'text-gray-500 text-caption p-2'
+                    with ui.row().classes("justify-between items-center"):
+                        ui.label(s[1]).classes("p-2 font-semibold")
+                        ui.label(s[3].strftime("%Y-%m-%d %H:%M")).classes(
+                            "text-gray-500 text-caption p-2"
                         )
                     ui.label(s[4]).classes(
-                        'py-0 px-2 text-gray-600 text-body2 overflow-hidden '
-                        'line-clamp-2'
+                        "py-0 px-2 text-gray-600 text-body2 overflow-hidden "
+                        "line-clamp-2"
                     )
 
     with (
         ui.dialog() as s_dialog,
-        ui.card().classes(
-            "w-5xl max-w-full h-3/4 overflow-hidden gap-0 py-8"
-        )
+        ui.card().classes("w-5xl max-w-full h-3/4 overflow-hidden gap-0 py-8"),
     ):
         with ui.row().classes("w-full item-center"):
-            search_inp = ui.input(
-                label=None,
-                placeholder="全文模糊搜索最相符的对话...",
-            ).classes(
-                "flex-1 px-2 shadow-none"
-            ).props(
-                "rounded outlined dense color=green-10"
+            search_inp = (
+                ui.input(
+                    label=None,
+                    placeholder="全文模糊搜索最相符的对话...",
+                )
+                .classes("flex-1 px-2 shadow-none")
+                .props("rounded outlined dense color=green-10")
             )
             with search_inp:
-                clear_btn = ui.button(
-                    color="grey-6",
-                    # icon="sym_r_delete",
-                    icon="cancel",
-                    on_click=lambda e: clear_clicked_callback(),
-                ).props(
-                    "flat dense"
-                ).bind_visibility_from(search_inp, 'value')
-                search_btn = ui.button(
-                    color="green-10",
-                    icon="sym_r_search",
-                    on_click=lambda e: search_clicked_callback(),
-                ).props(
-                    "flat dense"
-                ).bind_visibility_from(search_inp, 'value')
+                clear_btn = (
+                    ui.button(
+                        color="grey-6",
+                        # icon="sym_r_delete",
+                        icon="cancel",
+                        on_click=lambda e: clear_clicked_callback(),
+                    )
+                    .props("flat dense")
+                    .bind_visibility_from(search_inp, "value")
+                )
+                search_btn = (
+                    ui.button(
+                        color="green-10",
+                        icon="sym_r_search",
+                        on_click=lambda e: search_clicked_callback(),
+                    )
+                    .props("flat dense")
+                    .bind_visibility_from(search_inp, "value")
+                )
 
-        browser_card = ui.card().classes(
-            "w-full h-full overflow-x-hidden overflow-y-scroll shadow-none pl-0"
-        ).props('id="scrollable-card"')
+        browser_card = (
+            ui.card()
+            .classes(
+                "w-full h-full overflow-x-hidden overflow-y-scroll shadow-none pl-0"
+            )
+            .props('id="scrollable-card"')
+        )
 
     s_dialog.open()
     tmr = ui.timer(0.1, check)
@@ -239,6 +248,7 @@ async def session_browser(
     async def search_clicked_callback():
         import asyncio
         from ..fts import search_sessions, build_index_for_user
+
         keyword = search_inp.value.strip()
         if not keyword:
             return
@@ -249,26 +259,23 @@ async def session_browser(
         search_inp.disable()
         with browser_card:
             ui.label("搜索中，请稍候...").classes(
-                'mx-auto text-gray-500 py-4 text-caption'
+                "mx-auto text-gray-500 py-4 text-caption"
             )
         await asyncio.sleep(0.05)  # allow UI to update
         if retriever is None or session_ids is None:
             retriever, session_ids = build_index_for_user(user_id)
         results = search_sessions(
-            retriever,
-            session_ids,
-            keyword,
-            top_k=len(session_ids)
+            retriever, session_ids, keyword, top_k=len(session_ids)
         )
         browser_card.clear()
         with browser_card:
             if not results:
                 ui.label("-- 未找到相关对话 --").classes(
-                    'mx-auto text-gray-500 pt-4 text-caption'
+                    "mx-auto text-gray-500 pt-4 text-caption"
                 )
             else:
                 ui.label(f"-- 找到 {len(results)} 条结果 --").classes(
-                    'mx-auto text-gray-500 pt-4 text-caption'
+                    "mx-auto text-gray-500 pt-4 text-caption"
                 )
         await show_batch(search_result_batch(results))
         search_inp.enable()
@@ -279,4 +286,3 @@ async def session_browser(
         last_session_id = None
         browser_card.clear()
         tmr.activate()
-

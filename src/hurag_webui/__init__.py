@@ -64,16 +64,6 @@ file_handler.setFormatter(fmt)
 file_handler.setLevel(logging.DEBUG)
 logger.addHandler(file_handler)
 
-# db initialization CLI
-
-def main():
-    rss.init_rss()
-    logger().info("HuRAG 2.0 WebUI database initialized")
-
-if __name__ == "__main__":
-    main()
-
-
 __all__ = [
     "conf",
     "logger",
@@ -81,4 +71,3 @@ __all__ = [
     "hurag_conf",
     "generate_id",
 ]
-

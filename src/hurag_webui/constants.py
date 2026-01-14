@@ -129,4 +129,3 @@ INIT_RSS_SCRIPTS = [
         FOREIGN KEY (query_id) REFERENCES session_messages(id) ON DELETE CASCADE
     );""",
 ]
-

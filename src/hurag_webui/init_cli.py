@@ -1,4 +1,4 @@
-async def init_db(connection=None, cursor=None):
+async def init_db():
     ensure = input("初始化数据库将清空现有数据，请确认(Y/N): ")
     if ensure.strip().lower()[0] != "y":
         print("Bye!")
@@ -32,4 +32,3 @@ async def init_db(connection=None, cursor=None):
 def main():
     import asyncio
     asyncio.run(init_db())
-

@@ -273,4 +273,3 @@ async def transact(
         except Exception as e:
             await conn.rollback()
             raise e
-

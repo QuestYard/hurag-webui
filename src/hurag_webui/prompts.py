@@ -87,5 +87,3 @@ def create_rag_prompt(
         query=query,
     )
     return prompt
-
-
