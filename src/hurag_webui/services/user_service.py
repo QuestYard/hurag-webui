@@ -1,85 +1,61 @@
-from ..dss import rss
+from .. import dbs, logger, conf, generate_id
 from ..models import User
-from ..kernel import logger, conf
 
-from uuid6 import uuid7
-
-def get_user(account: str)-> User|None:
-    resp = rss.query(
-        """
-        SELECT id, account, username, user_path
-        FROM users
-        WHERE account = ?
-        """,
-        (account, ),
+async def get_user(account: str) -> User | None:
+    resp = await dbs.query(
+        "SELECT id, account, username, user_path FROM users WHERE account = %s",
+        (account,),
     )
     return User().from_db_response(resp[0]) if resp else None
 
-def get_user_by_id(id: str)-> User|None:
-    resp = rss.query(
-        """
-        SELECT id, account, username, user_path
-        FROM users
-        WHERE id = ?
-        """,
-        (id, ),
+
+async def get_user_by_id(id: str) -> User | None:
+    resp = await dbs.query(
+        "SELECT id, account, username, user_path FROM users WHERE id = %s", (id,)
     )
     return User().from_db_response(resp[0]) if resp else None
 
-def is_account_exist(account: str)-> bool:
-    resp = rss.query(
-        """
-        SELECT 1
-        FROM users
-        WHERE account = ?
-        """,
-        account,
+
+async def is_account_exist(account: str) -> bool:
+    resp = await dbs.query("SELECT 1 FROM users WHERE account = %s", (account,))
+    return bool(resp)
+
+
+async def is_user_id_exist(user_id: str) -> bool:
+    resp = await dbs.query("SELECT 1 FROM users WHERE id = %s", (user_id,))
+    return bool(resp)
+
+
+async def is_user_valid(user_id: str, account: str) -> bool:
+    resp = await dbs.query(
+        "SELECT 1 FROM users WHERE id = %s AND account = %s", (user_id, account)
     )
     return bool(resp)
 
-def is_user_id_exist(user_id: str)-> bool:
-    resp = rss.query(
-        """
-        SELECT 1
-        FROM users
-        WHERE id = ?
-        """,
-        user_id,
-    )
-    return bool(resp)
 
-def is_user_valid(user_id: str, account: str)-> bool:
-    resp = rss.query(
-        """
-        SELECT 1
-        FROM users
-        WHERE id = ? AND account = ?
-        """,
-        (user_id, account),
-    )
-    return bool(resp)
-
-def upsert_user(account, username, user_path)-> User|None:
-    resp = rss.dml(
+async def upsert_user(account, username, user_path) -> User | None:
+    resp = await dbs.dml(
         """
         INSERT INTO users (id, account, username, user_path)
-        VALUES (?, ?, ?, ?)
+        VALUES (%s, %s, %s, %s)
         ON DUPLICATE KEY UPDATE
             username = VALUES(username),
             user_path = VALUES(user_path)
         """,
-        (uuid7(), account, username, user_path)
+        (generate_id(), account, username, user_path),
     )
-    return get_user(account)
+    return await get_user(account)
 
-def login(account: str):
+
+async def login(account: str):
     sso_info = None
-    if conf().api.sso is not None:
+    if conf.services.sso is not None:
         # should change to real sso service later
-        logger.error("SSO is unavailable, login failed.", type="negative")
+        logger.error("SSO is unavailable, login failed.")
     else:
         import csv
         from pathlib import Path
+
         with open(Path.cwd() / "native_sso.csv", "r", encoding="utf-8") as f:
             csv_reader = csv.DictReader(f)
             for row in csv_reader:
@@ -88,10 +64,7 @@ def login(account: str):
                     break
 
     if sso_info is not None:
-        user = upsert_user(**sso_info)
+        user = await upsert_user(**sso_info)
         return user
 
     return None
-
-
-

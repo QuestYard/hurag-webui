@@ -272,7 +272,6 @@ async def root():
         task = None
         if ui_app.storage.client["current_session_id"] is None:
             # Generate new session's title in background
-            # TODO: refactor generate_session_title
             task = asyncio.create_task(generate_session_title(query))
             ui_app.storage.client["citations"] = {}
             ui_app.storage.client["messages"] = {}
@@ -305,9 +304,8 @@ async def root():
         )
 
         # Merge retrieved knowledge into cached citations
-        # TODO: Citation().from_knowledge() should be refactored later
         ui_app.storage.general["cached_citations"] |= {
-            k["segment_id"]: Citation().from_knowledge(k).model_dump()
+            k["segment_id"]: Citation().from_knowledge(k[0]).model_dump()
             for k in knowledge_list
         }
 
@@ -315,7 +313,6 @@ async def root():
         citation_ids = [k["segment_id"] for k in knowledge_list]
 
         # Chat with backend and get response
-        # TODO: refactor chat_with_backend() later
         response, response_ts = await chat_with_backend(
             message_container,
             mode,
@@ -341,7 +338,7 @@ async def root():
                 # 1) Wait and get the generated session title
                 title = await task
                 # 2) Save new session
-                s, q, r = upsert_session(
+                s, q, r = await upsert_session(
                     query=query,
                     query_ts=query_ts,
                     response=response,
@@ -356,7 +353,7 @@ async def root():
             else:
                 # Existing session update logic
                 # 1) Update session
-                _, q, r = upsert_session(
+                _, q, r = await upsert_session(
                     query=query,
                     query_ts=query_ts,
                     response=response,
@@ -371,7 +368,7 @@ async def root():
             if citation_ids:
                 ui_app.storage.client["citations"][r.id] = citation_ids
             # Refresh recent sessions in the left drawer
-            top_sessions = load_sessions_by_user(
+            top_sessions = await load_sessions_by_user(
                 ui_app.storage.user["current_user"]["id"],
                 limit=100,
             )
@@ -425,7 +422,7 @@ async def root():
         from .services import load_sessions_by_user
         from .viewers import show_session_history
 
-        top_sessions = load_sessions_by_user(
+        top_sessions = await load_sessions_by_user(
             ui_app.storage.user["current_user"]["id"],
             limit=100,
         )
@@ -455,7 +452,7 @@ async def root():
         )
         from .viewers import show_session_history
 
-        session = load_session_by_id(session_id)
+        session = await load_session_by_id(session_id)
         if not session:
             return
 
@@ -477,8 +474,8 @@ async def root():
         result = await dialog
         if not result:
             return  # cancelled
-        update_session_title(session_id, result)
-        top_sessions = load_sessions_by_user(
+        await update_session_title(session_id, result)
+        top_sessions = await load_sessions_by_user(
             ui_app.storage.user["current_user"]["id"],
             limit=100,
         )
@@ -500,10 +497,10 @@ async def root():
                 ).props("flat").classes("text-gray-600 px-6")
         confirm = await dialog
         if confirm:
-            delete_session_by_id(session_id)
+            await delete_session_by_id(session_id)
             ui.notify("对话已删除", type="positive")
             # Refresh session history
-            top_sessions = load_sessions_by_user(
+            top_sessions = await load_sessions_by_user(
                 ui_app.storage.user["current_user"]["id"],
                 limit=100,
             )
@@ -520,8 +517,8 @@ async def root():
         )
         from .viewers import show_session_history
 
-        pin_session_by_id(session_id)
-        top_sessions = load_sessions_by_user(
+        await pin_session_by_id(session_id)
+        top_sessions = await load_sessions_by_user(
             ui_app.storage.user["current_user"]["id"],
             limit=100,
         )
@@ -548,7 +545,7 @@ async def root():
         e.sender.props("color=amber-600" if msg["likes"] else "color=gray-500")
         from .services import like_message
 
-        like_message(msg["id"], msg["likes"])
+        await like_message(msg["id"], msg["likes"])
 
     @Dislike_response_clicked.subscribe
     async def dislike_response_clicked_handler(e, message_id: str):
@@ -557,7 +554,7 @@ async def root():
         e.sender.props("color=amber-600" if msg["dislikes"] else "color=gray-500")
         from .services import dislike_message
 
-        dislike_message(msg["id"], msg["dislikes"])
+        await dislike_message(msg["id"], msg["dislikes"])
 
     @Download_response_clicked.subscribe
     async def download_response_clicked_handler(message_id: str):
@@ -645,7 +642,7 @@ async def root():
         User_logged_in.emit("Guest")
         logger.info("No saved user, go on as Guest.")
     else:
-        user = login(ui_app.storage.user["current_user"]["account"])
+        user = await login(ui_app.storage.user["current_user"]["account"])
         if user:
             ui_app.storage.user["current_user"] = user.model_dump()
             logger.info(f"User {user.username}({user.account}) logged in.")

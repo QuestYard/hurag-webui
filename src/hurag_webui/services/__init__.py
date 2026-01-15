@@ -49,4 +49,3 @@ __all__ = [
     "next_session_batch",
     "search_result_batch",
 ]
-

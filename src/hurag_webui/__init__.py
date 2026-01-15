@@ -4,6 +4,7 @@ __email__ = "154788733@qq.com"
 __url__=""
 __description__ = "HuRAG WebUI"
 
+import os
 import yaml
 import logging
 from dotenv import load_dotenv
@@ -18,6 +19,11 @@ from hurag.utilities import generate_id, dict_to_namespace
 conf = None
 logger = None
 org_path = hurag_conf.app.org_path
+chat_params = {
+    "base_url": os.getenv(f"{hurag_conf.llm.generation}_BASE_URL"),
+    "api_key": os.getenv(f"{hurag_conf.llm.generation}_API_KEY"),
+    "model": os.getenv(f"{hurag_conf.llm.generation}_MODEL"),
+}
 
 # -- Initialization --
 
@@ -68,6 +74,7 @@ __all__ = [
     "conf",
     "logger",
     "org_path",
+    "chat_params",
     "hurag_conf",
     "generate_id",
 ]

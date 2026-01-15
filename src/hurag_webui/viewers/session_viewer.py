@@ -105,7 +105,7 @@ async def join_history_session(
 
     container.clear()
     container.classes(add="flex-grow overflow-y-auto")
-    messages = load_messages_by_session(session_id)
+    messages = await load_messages_by_session(session_id)
 
     with container:
         for message in messages:
@@ -127,12 +127,10 @@ async def join_history_session(
 
     await scroll_to_bottom(container)
 
-    return load_citation_ids_by_session(session_id), messages
+    return await load_citation_ids_by_session(session_id), messages
 
 
-async def session_browser(
-    user_id: str,
-):
+async def session_browser(user_id: str):
     """
     Browse sessions for a given user.
 
@@ -158,7 +156,7 @@ async def session_browser(
         nonlocal last_session_id
         try:
             if await ui.run_javascript(SCROLL_TO_BOTTOM_JS):
-                batch = next_session_batch(user_id, last_session_id, 10)
+                batch = await next_session_batch(user_id, last_session_id, 10)
                 if batch:
                     last_session_id = batch[-1][0]
                     with browser_card:
@@ -277,7 +275,7 @@ async def session_browser(
                 ui.label(f"-- 找到 {len(results)} 条结果 --").classes(
                     "mx-auto text-gray-500 pt-4 text-caption"
                 )
-        await show_batch(search_result_batch(results))
+        await show_batch(await search_result_batch(results))
         search_inp.enable()
 
     async def clear_clicked_callback():

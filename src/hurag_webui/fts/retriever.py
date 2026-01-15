@@ -20,10 +20,10 @@ def build_index_for_user(
             - An instance of bm25s.BM25 containing the indexed sessions.
             - A list of session IDs corresponding to the indexed sessions.
     """
-    sessions = load_sessions_by_user(user_id)
+    sessions = await load_sessions_by_user(user_id)
     session_docs = {
         s.id: f"{s.title}\n{
-            '\n'.join([m.content for m in load_messages_by_session(s.id)])
+            '\n'.join([m.content for m in await load_messages_by_session(s.id)])
         }"
         for s in sessions
     }

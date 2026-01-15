@@ -34,7 +34,7 @@ async def show_citations(
     import asyncio
 
     await asyncio.sleep(0.05)  # allow UI to update
-    citations = load_citations_by_ids(
+    citations = await load_citations_by_ids(
         ids,
         cached_citations,
         user_path,

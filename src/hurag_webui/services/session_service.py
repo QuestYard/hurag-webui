@@ -2,7 +2,8 @@ from ..models import Session, Message
 
 from datetime import datetime
 
-def load_session_by_id(session_id: str) -> Session|None:
+
+async def load_session_by_id(session_id: str) -> Session | None:
     """
     Load a session by its ID.
 
@@ -15,58 +16,54 @@ def load_session_by_id(session_id: str) -> Session|None:
     if not session_id:
         return None
 
-    from ..dss import rss
+    from .. import dbs
 
-    query = """
-    SELECT id, title, created_ts, user_id
-    FROM sessions
-    WHERE id = ?
-    """
-    rows = rss.query(query, (session_id,))
+    query = "SELECT id, title, created_ts, user_id FROM sessions WHERE id = %s"
+    rows = await dbs.query(query, (session_id,))
     if not rows:
         return None
 
     session = Session().from_db_response(rows[0])
     return session
 
-def load_sessions_by_user(user_id: str, limit: int=100) -> list[Session]:
+
+async def load_sessions_by_user(user_id: str, limit: int = 100) -> list[Session]:
     """
     Load recent sessions for a given user. Load all sessions if limit <= 0.
 
     Arugments:
         user_id: The ID of the user.
         limit: The maximum number of sessions to load.
-    
+
     Returns:
         A list of Session objects.
     """
     if not user_id:
         return []
 
-    from ..dss import rss
+    from .. import dbs
 
     query = """
-    SELECT id, title, created_ts, user_id
-    FROM sessions
-    WHERE user_id = ?
+    SELECT id, title, created_ts, user_id FROM sessions WHERE user_id = %s
     ORDER BY created_ts DESC
     """
     query += f"LIMIT {limit}" if limit > 0 else ""
-    rows = rss.query(query, (user_id,))
+    rows = await dbs.query(query, (user_id,))
     sessions = [Session().from_db_response(row) for row in rows]
 
     return sessions
 
-def upsert_session(
+
+async def upsert_session(
     query: str,
     query_ts: datetime,
     response: str,
     response_ts: datetime,
-    citation_ids: list[str]|None=None,
-    session_id: str|None=None,
-    title: str|None=None,
-    user_id: str|None=None,
-)-> tuple[Session, Message, Message]:
+    citation_ids: list[str] | None = None,
+    session_id: str | None = None,
+    title: str | None = None,
+    user_id: str | None = None,
+) -> tuple[Session, Message, Message]:
     """
     Insert new session or update existed session.
 
@@ -86,44 +83,34 @@ def upsert_session(
             - The Message object for the user query.
             - The Message object for the LLM response.
     """
-    from ..dss import rss
-    from uuid6 import uuid7
+    from .. import dbs
+    from .. import generate_id
 
     CREATE_NEW_SESSION = """
-        INSERT INTO sessions
-            (id, title, created_ts, user_id)
-        VALUES
-            (?, ?, ?, ?)
-        """
+        INSERT INTO sessions (id, title, created_ts, user_id) VALUES (%s, %s, %s, %s)
+    """
     INSERT_QUERY = """
         INSERT INTO session_messages
             (id, session_id, seq_no, role, content, created_ts, pair_id)
         VALUES
-            (?, ?, ?, 'user', ?, ?, ?)
-        """
+            (%s, %s, %s, 'user', %s, %s, %s)
+    """
     INSERT_RESPONSE = """
         INSERT INTO session_messages
             (id, session_id, seq_no, role, content, created_ts, pair_id)
         VALUES
-            (?, ?, ?, 'assistant', ?, ?, ?)
-        """
+            (%s, %s, %s, 'assistant', %s, %s, %s)
+    """
     INSERT_CITATIONS = """
-        INSERT INTO query_segments
-            (query_id, segment_id, seq_no)
-        VALUES
-            (?, ?, ?)
-        """
-    GET_LAST_SEQ_NO = """
-        SELECT max(seq_no) FROM session_messages WHERE session_id = ?
+        INSERT INTO query_segments (query_id, segment_id, seq_no) VALUES (%s, %s, %s)
     """
-    UPDATE_SESSION = """
-        UPDATE sessions SET created_ts = ? WHERE id = ?
-    """
-    query_id = uuid7()
-    response_id = uuid7()
+    GET_LAST_SEQ_NO = "SELECT max(seq_no) FROM session_messages WHERE session_id = %s"
+    UPDATE_SESSION = "UPDATE sessions SET created_ts = %s WHERE id = %s"
+    query_id = generate_id()
+    response_id = generate_id()
     session_ts = datetime.now()
     if not session_id:
-        session_id = uuid7()
+        session_id = generate_id()
         statements = [
             CREATE_NEW_SESSION,
             INSERT_QUERY,
@@ -133,74 +120,70 @@ def upsert_session(
             (session_id, title, session_ts, user_id),
             (query_id, session_id, 0, query, query_ts, response_id),
             (response_id, session_id, 1, response, response_ts, query_id),
-        ] + [(response_id, cid, seq+1) for seq, cid in enumerate(citation_ids)]
-        rss.transact(statements, data)
-        s = Session(
-            id=str(session_id),
-            title=title,
-            created_ts=session_ts,
-            user_id=user_id,
-        )
+        ] + [(response_id, cid, seq + 1) for seq, cid in enumerate(citation_ids)]
+        await dbs.transact(statements, data)
+        s = Session(id=session_id, title=title, created_ts=session_ts, user_id=user_id)
         q = Message(
-            id=str(query_id),
-            session_id=str(session_id),
+            id=query_id,
+            session_id=session_id,
             seq_no=0,
-            role='user',
+            role="user",
             content=query,
             created_ts=query_ts,
-            pair_id=str(response_id),
+            pair_id=response_id,
         )
         r = Message(
-            id=str(response_id),
-            session_id=str(session_id),
+            id=response_id,
+            session_id=session_id,
             seq_no=1,
-            role='assistant',
+            role="assistant",
             content=response,
             created_ts=response_ts,
-            pair_id=str(query_id),
+            pair_id=query_id,
         )
         return s, q, r
     # update existed session
-    last_seq_no = rss.query(GET_LAST_SEQ_NO, (session_id, ))[0][0] or -1
+    last_seq_no = (await dbs.query(GET_LAST_SEQ_NO, (session_id,)))[0][0] or -1
     statements = [
         INSERT_QUERY,
         INSERT_RESPONSE,
         UPDATE_SESSION,
     ] + [INSERT_CITATIONS] * len(citation_ids)
     data = [
-        (query_id, session_id, last_seq_no+1, query, query_ts, response_id),
+        (query_id, session_id, last_seq_no + 1, query, query_ts, response_id),
         (
             response_id,
             session_id,
-            last_seq_no+2,
+            last_seq_no + 2,
             response,
             response_ts,
             query_id,
         ),
-        (session_ts, session_id)
-    ] + [(response_id, cid, seq+1) for seq, cid in enumerate(citation_ids)]
-    rss.transact(statements, data)
+        (session_ts, session_id),
+    ] + [(response_id, cid, seq + 1) for seq, cid in enumerate(citation_ids)]
+    await dbs.transact(statements, data)
     q = Message(
-        id=str(query_id),
-        session_id=str(session_id),
-        seq_no=last_seq_no+1,
-        role='user',
+        id=query_id,
+        session_id=session_id,
+        seq_no=last_seq_no + 1,
+        role="user",
         content=query,
         created_ts=query_ts,
-        pair_id=str(response_id),
+        pair_id=response_id,
     )
     r = Message(
-        id=str(response_id),
-        session_id=str(session_id),
-        seq_no=last_seq_no+2,
-        role='assistant',
+        id=response_id,
+        session_id=session_id,
+        seq_no=last_seq_no + 2,
+        role="assistant",
         content=response,
         created_ts=response_ts,
-        pair_id=str(query_id),
+        pair_id=query_id,
     )
     return None, q, r
 
-def load_messages_by_session(session_id: str) -> list[Message]:
+
+async def load_messages_by_session(session_id: str) -> list[Message]:
     """
     Load messages for a given session.
 
@@ -213,7 +196,7 @@ def load_messages_by_session(session_id: str) -> list[Message]:
     if not session_id:
         return []
 
-    from ..dss import rss
+    from .. import dbs
 
     query = """
     SELECT
@@ -227,46 +210,45 @@ def load_messages_by_session(session_id: str) -> list[Message]:
         dislikes,
         pair_id
     FROM session_messages
-    WHERE session_id = ?
+    WHERE session_id = %s
     ORDER BY seq_no ASC
     """
-    rows = rss.query(query, (session_id,))
+    rows = await dbs.query(query, (session_id,))
     messages = [Message().from_db_response(row) for row in rows]
 
     return messages
 
-def load_citation_ids_by_session(session_id: str) -> dict[str, str]:
+
+async def load_citation_ids_by_session(session_id: str) -> dict[str, str]:
     """
     Load citation IDs associated with queries in a given session.
     Arguments:
         session_id: The ID of the session.
-    
+
     Returns:
         A dictionary mapping query IDs to lists of citation segment IDs.
     """
     if not session_id:
         return {}
 
-    from ..dss import rss
+    from .. import dbs
 
     query = """
     SELECT qs.query_id, qs.segment_id
     FROM query_segments qs
     JOIN session_messages sm ON qs.query_id = sm.id
-    WHERE sm.session_id = ?
+    WHERE sm.session_id = %s
     ORDER BY qs.seq_no ASC
     """
-    rows = rss.query(query, (session_id,))
+    rows = await dbs.query(query, (session_id,))
     citation_ids = {}
     for qid, sid in rows:
         citation_ids.setdefault(qid, []).append(sid)
 
     return citation_ids
 
-async def generate_session_title(
-    query: str,
-    max_length: int = 20,
-) -> str:
+
+async def generate_session_title(query: str, max_length: int = 20) -> str:
     """
     Generate a session title based on the user query.
 
@@ -279,65 +261,74 @@ async def generate_session_title(
     """
     title = query.strip()
     if len(title) > max_length:
-        from ..backend import chat
+        from hurag.llm import chat, extract_response
+        from .. import chat_params
+
         system_prompt = (
             "你是一名助手，需根据用户的查询生成简洁且相关的会话标题。"
             "请输出能抓住查询核心、字数精炼的标题。"
         )
         response = await chat(
+            model=chat_params["model"],
             prompt=(
-                f"基于以下用户查询生成一个"
-                f"不超过 {max_length} 字的简洁标题：{query}"
+                f"基于以下用户查询生成一个不超过 {max_length} 字的简洁标题：{query}"
             ),
             system_prompt=system_prompt,
+            base_url=chat_params["base_url"],
+            api_key=chat_params["api_key"],
             temperature=0.5,
             stream=False,
             timeout=30,
         )
-        title = response["content"].strip()
+        title = extract_response(response).strip()
     return title
 
-def dislike_message(message_id: str, dislikes: int):
-    from ..dss import rss
-    rss.dml(
-        "UPDATE session_messages SET dislikes = ? WHERE id = ?",
-        (dislikes, message_id)
+
+async def dislike_message(message_id: str, dislikes: int):
+    from .. import dbs
+
+    await dbs.dml(
+        "UPDATE session_messages SET dislikes = %s WHERE id = %s",
+        (dislikes, message_id),
     )
 
-def like_message(message_id: str, likes: int):
-    from ..dss import rss
-    rss.dml(
-        "UPDATE session_messages SET likes = ? WHERE id = ?",
-        (likes, message_id)
+
+async def like_message(message_id: str, likes: int):
+    from .. import dbs
+
+    await dbs.dml(
+        "UPDATE session_messages SET likes = %s WHERE id = %s",
+        (likes, message_id),
     )
 
-def update_session_title(session_id: str, title: str):
-    from ..dss import rss
-    rss.dml(
-        "UPDATE sessions SET title = ? WHERE id = ?",
-        (title, session_id)
+
+async def update_session_title(session_id: str, title: str):
+    from .. import dbs
+
+    await dbs.dml("UPDATE sessions SET title = %s WHERE id = %s", (title, session_id))
+
+
+async def delete_session_by_id(session_id: str):
+    from .. import dbs
+
+    await dbs.dml("DELETE FROM sessions WHERE id = %s", (session_id,))
+
+
+async def pin_session_by_id(session_id: str):
+    from .. import dbs
+
+    await dbs.dml(
+        "UPDATE sessions SET created_ts = %s WHERE id = %s",
+        (datetime.now(), session_id),
     )
 
-def delete_session_by_id(session_id: str):
-    from ..dss import rss
-    rss.dml(
-        "DELETE FROM sessions WHERE id = ?",
-        (session_id,)
-    )
 
-def pin_session_by_id(session_id: str):
-    from ..dss import rss
-    rss.dml(
-        "UPDATE sessions SET created_ts = ? WHERE id = ?",
-        (datetime.now(), session_id)
-    )
-
-def next_session_batch(
+async def next_session_batch(
     user_id: str,
-    last_session_id: str|None,
-    batch_size: int=10,
+    last_session_id: str | None,
+    batch_size: int = 10,
 ) -> list[tuple]:
-    from ..dss import rss
+    from .. import dbs
 
     query = """
         WITH last_msgs AS (
@@ -355,27 +346,26 @@ def next_session_batch(
             lm.content
         FROM sessions s
         LEFT JOIN last_msgs lm ON lm.session_id = s.id AND lm.rn = 1
-        WHERE s.user_id = ?"""
+        WHERE s.user_id = %s
+    """
     params = [user_id]
     if last_session_id:
-        query += (
-            " AND s.created_ts < "
-            "(SELECT created_ts FROM sessions WHERE id = ?)"
-        )
+        query += " AND s.created_ts < (SELECT created_ts FROM sessions WHERE id = %s)"
         params.append(last_session_id)
-    query += " ORDER BY s.created_ts DESC LIMIT ?"
+    query += " ORDER BY s.created_ts DESC LIMIT %s"
     params.append(batch_size)
-    rows = rss.query(query, tuple(params))
+    rows = await dbs.query(query, tuple(params))
 
     return rows
 
-def search_result_batch(results: list[tuple[str, float]])-> list[tuple]:
-    from ..dss import rss
+
+async def search_result_batch(results: list[tuple[str, float]]) -> list[tuple]:
+    from .. import dbs
 
     if not results:
         return []
 
-    placeholders = ','.join(['?'] * len(results))
+    placeholders = ",".join(["%s"] * len(results))
     query = f"""
         WITH last_msgs AS (
             SELECT sm.id, sm.session_id, sm.content, sm.created_ts,
@@ -396,6 +386,6 @@ def search_result_batch(results: list[tuple[str, float]])-> list[tuple]:
         ORDER BY FIELD(s.id, {placeholders})
     """
     params = [x[0] for x in results] * 2
-    rows = rss.query(query, tuple(params))
+    rows = await dbs.query(query, tuple(params))
 
     return rows

@@ -37,7 +37,7 @@ def user_manager(ui_app):
         if not submitted_account or submitted_account.lower() == "guest":
             ui.notify("输入的用户账户无效", type="warning")
             return
-        user = login(submitted_account)
+        user = await login(submitted_account)
         if not user:
             ui.notify("账户未通过身份验证", type="negative")
         else:

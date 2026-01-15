@@ -1,13 +1,18 @@
-import re
+from __future__ import annotations
+from typing import Self, TYPE_CHECKING
 
+if TYPE_CHECKING:
+    from hurag.schemas import Knowledge
+
+import re
 from pydantic import BaseModel, Field
-from typing import Self
+
 
 class Citation(BaseModel):
-    id: str|None=Field(default=None)
-    doc_id: str|None=Field(default=None, compare=False, repr=False)
-    doc: str|None=Field(default=None, compare=False)
-    content: str|None=Field(default=None, compare=False, repr=False)
+    id: str | None = Field(default=None)
+    doc_id: str | None = Field(default=None, compare=False, repr=False)
+    doc: str | None = Field(default=None, compare=False)
+    content: str | None = Field(default=None, compare=False, repr=False)
 
     def __repr__(self):
         return (
@@ -15,17 +20,17 @@ class Citation(BaseModel):
             f"content='{' '.join(self.content.split('\n'))[:40]}')"
         )
 
-    def from_knowledge(self, knowledge: dict)-> Self:
-        self.id=knowledge.get("segment_id", "")
-        self.doc_id=knowledge.get("metadata", {}).get("id", "")
-        self.doc=knowledge.get("metadata", {}).get("title", "")
-        self.content=knowledge.get("content", "")
+    def from_knowledge(self, knowledge: Knowledge) -> Self:
+        self.id = knowledge.segment_id
+        self.doc_id = knowledge.metadata.id
+        self.doc = knowledge.metadata.title
+        self.content = knowledge.content
         return self
 
     @property
     def text(self):
         """Cleaned content to show in web pages"""
-        return sanitize_markdown(self.content),
+        return (sanitize_markdown(self.content),)
 
     @property
     def brief(self):
@@ -35,9 +40,11 @@ class Citation(BaseModel):
         else:
             return sanitize_markdown(self.content)
 
+
 # --- Utility functions ---
 
 _CJK = r"\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af"
+
 
 def sanitize_markdown(content: str) -> str:
     """Sanitize markdown content to present clean format to show in UI.
@@ -54,26 +61,32 @@ def sanitize_markdown(content: str) -> str:
     Returns:
         str: The sanitized markdown content.
     """
+
     def _replace_tag_brackets(text: str) -> str:
-        text = re.sub(r'<(\w+)([^>]*)/>', r'[\1\2/]', text)  # self-closing tags
+        text = re.sub(r"<(\w+)([^>]*)/>", r"[\1\2/]", text)  # self-closing tags
         text = re.sub(
-            r'<(\w+)([^>]*)>(.*?)</\1>',
-            lambda m: f'[{m.group(1)}{m.group(2)}]{_replace_tag_brackets(m.group(3))}[/{m.group(1)}]',
+            r"<(\w+)([^>]*)>(.*?)</\1>",
+            lambda m: f"[{m.group(1)}{m.group(2)}]{_replace_tag_brackets(m.group(3))}[/{
+                m.group(1)
+            }]",
             text,
-            flags=re.DOTALL
+            flags=re.DOTALL,
         )
         return text
 
     # 1. Remove excessive blank lines (more than 2 consecutive newlines)
-    content = re.sub(r'\n{3,}', '\n\n', content)
+    content = re.sub(r"\n{3,}", "\n\n", content)
     # 2. Change HTML tags to `[]` wrapping
     content = _replace_tag_brackets(content)
     # 3. Remove heading marks and underline the heads instead
-    content = re.sub(r'^(#{1,})\s*(.+)$', lambda m: f'<u>{m.group(2)}</u>', content, flags=re.MULTILINE)
+    content = re.sub(
+        r"^(#{1,})\s*(.+)$",
+        lambda m: f"<u>{m.group(2)}</u>",
+        content,
+        flags=re.MULTILINE,
+    )
     # 4. Insert spaces around inline LaTeX expressions
     content = re.sub(rf"([{_CJK}A-Za-z0-9])(\$[^$]+\$)", r"\1 \2", content)
     content = re.sub(rf"(\$[^$]+\$)([{_CJK}A-Za-z0-9])", r"\1 \2", content)
     # 5. Remove leading and trailing whitespace and return the content
     return content.strip()
-
-
