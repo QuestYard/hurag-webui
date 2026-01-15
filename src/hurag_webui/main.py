@@ -291,7 +291,7 @@ async def root():
         await scroll_to_bottom(message_container)
 
         # Retrieve knowledge, list of [Knowledge.model_dump(), ...]
-        knowledge_list = await retrieve(
+        knowledge_list = [] if mode is None else await retrieve(
             query=query,
             history=[
                 m["content"]
@@ -304,12 +304,12 @@ async def root():
 
         # Merge retrieved knowledge into cached citations
         ui_app.storage.general["cached_citations"] |= {
-            k["segment_id"]: Citation().from_knowledge(k[0]).model_dump()
+            k[0].segment_id: Citation().from_knowledge(k[0]).model_dump()
             for k in knowledge_list
         }
 
         # Get current citation IDs
-        citation_ids = [k["segment_id"] for k in knowledge_list]
+        citation_ids = [k[0].segment_id for k in knowledge_list]
 
         # Chat with backend and get response
         response, response_ts = await chat_with_backend(

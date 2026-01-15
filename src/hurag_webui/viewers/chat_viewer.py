@@ -170,12 +170,12 @@ async def chat_with_backend(
     with container:
         bot_msg_md = await display_bot_message("")
         try:
-            response = chat(
+            response = await chat(
                 model=chat_params["model"],
                 prompt=prompt,
                 system_prompt=system_prompt,
-                history=history[hist_limit:] if hist_limit else history,
-                base_url=chat_params["model"],
+                history_messages=history[hist_limit:] if hist_limit else history,
+                base_url=chat_params["base_url"],
                 api_key=chat_params["api_key"],
                 temperature=temperature,
                 stream=True,

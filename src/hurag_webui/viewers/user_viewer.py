@@ -1,7 +1,7 @@
 from ..events import User_logged_in
 from ..models import User
 from ..services import login
-from ..kernel import logger
+from .. import logger
 from nicegui import ui
 
 
@@ -32,7 +32,7 @@ def user_manager(ui_app):
             )
 
     # --- Callback functions ---
-    def submit(e):
+    async def submit(e):
         submitted_account = account_inp.value.strip()
         if not submitted_account or submitted_account.lower() == "guest":
             ui.notify("输入的用户账户无效", type="warning")
@@ -44,7 +44,7 @@ def user_manager(ui_app):
             ui.notify(f"用户{user.username}({user.account})验证通过", type="positive")
             ui_app.storage.user["current_user"] = user.model_dump()
             User_logged_in.emit(user.account)
-            logger().info(f"User {user.username}({user.account}) logged in.")
+            logger.info(f"User {user.username}({user.account}) logged in.")
             dialog.close()
 
     def logout(e):
