@@ -254,7 +254,6 @@ async def root():
             generate_session_title,
         )
 
-        # from .backend import rag_retrieve --- IGNORE while refactoring 0114---
         from hurag.retrievers import retrieve
 
         # Perpare user query and timestamp

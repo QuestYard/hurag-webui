@@ -140,8 +140,8 @@ async def chat_with_backend(
             - The message of the bot response.
             - The timestamp of the bot response.
     """
-    # from ..backend import chat
-    from .. import conf
+    from .. import conf, chat_params
+    from hurag.llm import chat, extract_chunk
     from httpx import RemoteProtocolError
     # import mdformat
 
@@ -158,28 +158,31 @@ async def chat_with_backend(
         prompt = message
 
     # HACK: Log context length
-    _context_length(
-        mode=mode,
-        message=message,
-        knowledge_list=knowledge_list,
-        prompt=prompt,
-        history=history,
-    )
+    # _context_length(
+    #     mode=mode,
+    #     message=message,
+    #     knowledge_list=knowledge_list,
+    #     prompt=prompt,
+    #     history=history,
+    # )
 
     hist_limit = _CTX_SIZE_MAP[conf.services.ctx_size][1]
     with container:
         bot_msg_md = await display_bot_message("")
         try:
             response = chat(
+                model=chat_params["model"],
                 prompt=prompt,
                 system_prompt=system_prompt,
                 history=history[hist_limit:] if hist_limit else history,
+                base_url=chat_params["model"],
+                api_key=chat_params["api_key"],
                 temperature=temperature,
                 stream=True,
                 timeout=timeout,
             )
             async for chunk in response:
-                content += chunk
+                content += extract_chunk(chunk)
                 bot_msg_md.set_content(content)
                 await scroll_to_bottom(container)
         except RemoteProtocolError:
