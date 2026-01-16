@@ -1,4 +1,5 @@
 from . import logger
+from .dbs import lifespan
 from .models import User, Citation
 from .services import login
 from .viewers import user_manager, scroll_to_bottom, show_citations
@@ -37,7 +38,7 @@ from fastapi.staticfiles import StaticFiles
 
 # --- FastAPI App Setup ---
 
-app = FastAPI()
+app = FastAPI(lifespan=lifespan)
 
 # Mount static directory to serve static files like favicon.svg
 # You can now access your icon at: http://localhost:8082/static/favicon.svg

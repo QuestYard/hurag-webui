@@ -1,3 +1,9 @@
+from __future__ import annotations
+from typing import Any, Literal, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from hurag.schemas import Knowledge
+
 from ..events import (
     Copy_response_clicked,
     Regenerate_response_clicked,
@@ -10,7 +16,6 @@ from .. import logger
 
 from nicegui import ui
 from datetime import datetime
-from typing import Any, Literal
 
 _CTX_SIZE_MAP = {
     "tiny": (4, -2),  # 4 docs, 1 history round
@@ -32,10 +37,10 @@ async def display_user_message(
 
 async def display_bot_message(content) -> ui.markdown:
     """Display a bot message in the chat viewer."""
-    # import mdformat
+    import mdformat
     return ui.markdown(
-        # mdformat.text(content) if content else "",
-        content if content else "",
+        mdformat.text(content) if content else "",
+        # content if content else "",
         extras=["fenced-code-blocks", "tables", "latex", "mermaid"],
     ).classes("w-full max-w-full text-gray-800")
 
@@ -116,7 +121,7 @@ async def chat_with_backend(
     container: ui.column,
     mode: Literal["naive", "mix", "community", "global"] | None,
     message: str,
-    knowledge_list: list[dict[str, Any]],
+    knowledge_list: list[Knowledge],    # list[dict[str, Any]],
     system_prompt: str | None = None,
     history: list | None = None,
     temperature: float | None = 0,
@@ -143,7 +148,7 @@ async def chat_with_backend(
     from .. import conf, chat_params
     from hurag.llm import chat, extract_chunk
     from httpx import RemoteProtocolError
-    # import mdformat
+    import mdformat
 
     content = ""
     if mode:
@@ -183,7 +188,8 @@ async def chat_with_backend(
             )
             async for chunk in response:
                 content += extract_chunk(chunk)
-                bot_msg_md.set_content(content)
+                # bot_msg_md.set_content(content)
+                bot_msg_md.set_content(mdformat.text(content) if content else "")
                 await scroll_to_bottom(container)
         except RemoteProtocolError:
             logger.error(f"Context window overflow")

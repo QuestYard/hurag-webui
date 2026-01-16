@@ -1,4 +1,8 @@
-from typing import Any
+from __future__ import annotations
+from typing import Any, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from hurag.schemas import Knowledge
 
 RAG_PROMPT_TEMPLATE = """你是一名知识库问答助手，能够根据提供的相关知识段，准确且简洁地回答用户的问题。
 
@@ -38,7 +42,7 @@ RAG_PROMPT_TEMPLATE = """你是一名知识库问答助手，能够根据提供�
 
 def create_rag_prompt(
     query: str,
-    knowledge_list: list[dict[str, Any]],
+    knowledge_list: list[Knowledge],    # list[dict[str, Any]],
     kn_limit: int | None = None,
 ) -> str:
     """
@@ -55,17 +59,17 @@ def create_rag_prompt(
     for idx, item in enumerate(
         knowledge_list[:kn_limit] if kn_limit else knowledge_list
     ):
-        content = item["content"].strip()
-        score = item["score"]
-        metadata = item["metadata"]
-        _title = metadata["title"]
-        _sn = metadata["sn"]
-        _date = metadata["date"]
-        _valid_from = metadata["valid_from"]
-        _valid_to = metadata["valid_to"]
-        _replaces = metadata["replaces"]
-        _localizes = metadata["localizes"]
-        _pub_path = metadata["pub_path"]
+        content = item[0].content.strip()
+        score = item[1]
+        metadata = item[0].metadata
+        _title = metadata.title
+        _sn = metadata.sn
+        _date = metadata.date
+        _valid_from = metadata.valid_from
+        _valid_to = f"{metadata.valid_to:%Y-%m-%d}" if metadata.valid_to else "未废止"
+        _replaces = metadata.replaces
+        _localizes = metadata.localizes
+        _pub_path = metadata.pub_path
 
         knowledge_segments.append(
             f"### 知识段 {idx + 1}\n"
@@ -74,9 +78,9 @@ def create_rag_prompt(
             f"- **文档元数据**: \n"
             f"  - **文档标题**: {_title}\n"
             f"  - **法令号/文号**: { _sn if _sn else '无' }\n"
-            f"  - **发布日期**: {_date.split('T')[0]}\n"
-            f"  - **生效日期**: {_valid_from.split('T')[0]}\n"
-            f"  - **废止日期**: {_valid_to.split('T')[0] if _valid_to else '未废止'}\n"
+            f"  - **发布日期**: {_date:%Y-%m-%d}\n"
+            f"  - **生效日期**: {_valid_from:%Y-%m-%d}\n"
+            f"  - **废止日期**: {_valid_to}\n"
             f"  - **上一版本**: {_replaces if _replaces else '无'}\n"
             f"  - **上位版本**: {_localizes if _localizes else '无'}\n"
             f"  - **发布机构路径**: {_pub_path}"
