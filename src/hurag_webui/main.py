@@ -22,6 +22,7 @@ from .events import (
     Download_response_clicked,
     Show_message_citations_clicked,
 )
+from hurag.retrievers import retrieve
 
 import asyncio
 import os
@@ -254,8 +255,6 @@ async def root():
             load_sessions_by_user,
             generate_session_title,
         )
-
-        from hurag.retrievers import retrieve
 
         # Perpare user query and timestamp
         query = message or text_input.value.strip()

@@ -82,5 +82,40 @@ cd /path/to/working-dirctory
 init-db
 ```
 
-## 启动服务
+## 启动应用
 
+**开发模式**
+
+使用命令 `python -m hurag.webui` 以开发模式启动 HuRAG WebUI 应用。此模式下，应用会监听代码和模板文件的变更，适合开发调试使用。
+
+**生产模式**
+
+生产模式部署启动推荐使用 `gunicorn`，并配置为守护进程运行。
+
+项目的工作目录必须和 `hurag` 库的工作目录为同一个，或者在工作目录中放置正确的 `hurag` 库配置文件，包括 `hurag.yaml`, `.env`, `kgraph.toml` 等。如果应用使用内置的简易 SSO 服务，还需要在工作目录中放置 `native_sso.csv` 文件，用于存放用户信息。
+
+`native_sso.csv` 文件的格式为 CSV，第一行为表头，后续行为用户信息，示例如项目根目录中的 `native_sso.csv` 文件：[native_sso.csv](./native_sso.csv)  
+
+### Systemd 服务配置
+
+在项目根目录下的 `hurag_webui.service.1` 文件提供了一个 `systemd` 服务单元文件的示例，可将其复制到工作目录，修改其中的工作目录和 `gunicorn` 运行目录，并配置为系统服务。
+
+需要修改的内容包括：
+
+- `WorkingDirectory=` 行，修改为 HuRAG WebUI 项目的工作目录。
+- `ExecStart=` 行，修改为 `gunicorn` 可执行文件的路径，通常为项目虚拟环境中的 `gunicorn` 可执行文件路径。
+
+其他配置信息，如监听端口（默认8088）根据需要进行调整。
+
+配置并启动系统服务的命令如下：
+
+```bash
+# 复制服务单元文件到工作目录
+cp /path/to/installation/hurag-webui/hurag_webui.service.1 /path/to/working-directory/hurag_webui.service
+# 编辑 hurag_webui.service 文件，修改 WorkingDirectory 和 ExecStart 行
+# 将服务单元文件链接到 systemd 目录
+sudo ln -s /path/to/working-directory/hurag_webui.service /etc/systemd/system/hurag_webui.service
+sudo systemctl daemon-reload
+sudo systemctl start hurag_webui.service
+sudo systemctl enable hurag_webui.service
+```
