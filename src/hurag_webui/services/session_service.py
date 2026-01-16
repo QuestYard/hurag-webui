@@ -115,12 +115,17 @@ async def upsert_session(
             CREATE_NEW_SESSION,
             INSERT_QUERY,
             INSERT_RESPONSE,
-        ] + [INSERT_CITATIONS] * len(citation_ids)
+        ]
         data = [
             (session_id, title, session_ts, user_id),
             (query_id, session_id, 0, query, query_ts, response_id),
             (response_id, session_id, 1, response, response_ts, query_id),
-        ] + [(response_id, cid, seq + 1) for seq, cid in enumerate(citation_ids)]
+        ]
+        if citation_ids:
+            statements.append(INSERT_CITATIONS)
+            data.append(
+                [(response_id, cid, seq + 1) for seq, cid in enumerate(citation_ids)]
+            )
         await dbs.transact(statements, data)
         s = Session(id=session_id, title=title, created_ts=session_ts, user_id=user_id)
         q = Message(
@@ -143,25 +148,54 @@ async def upsert_session(
         )
         return s, q, r
     # update existed session
-    last_seq_no = (await dbs.query(GET_LAST_SEQ_NO, (session_id,)))[0][0] or -1
-    statements = [
-        INSERT_QUERY,
-        INSERT_RESPONSE,
-        UPDATE_SESSION,
-    ] + [INSERT_CITATIONS] * len(citation_ids)
-    data = [
-        (query_id, session_id, last_seq_no + 1, query, query_ts, response_id),
-        (
-            response_id,
-            session_id,
-            last_seq_no + 2,
-            response,
-            response_ts,
-            query_id,
-        ),
-        (session_ts, session_id),
-    ] + [(response_id, cid, seq + 1) for seq, cid in enumerate(citation_ids)]
-    await dbs.transact(statements, data)
+    pool = await dbs.get_pool()
+    async with pool.acquire() as conn, conn.cursor() as cur:
+        await conn.begin()
+        try:
+            # Lock the session to prevent concurrent updates to seq_no
+            await cur.execute(
+                "SELECT 1 FROM sessions WHERE id = %s FOR UPDATE", (session_id,)
+            )
+
+            # Get the last seq_no
+            await cur.execute(GET_LAST_SEQ_NO, (session_id,))
+            row = await cur.fetchone()
+            last_seq_no = row[0] if row and row[0] is not None else -1
+
+            statements = [
+                INSERT_QUERY,
+                INSERT_RESPONSE,
+                UPDATE_SESSION,
+            ]
+            data = [
+                (query_id, session_id, last_seq_no + 1, query, query_ts, response_id),
+                (
+                    response_id,
+                    session_id,
+                    last_seq_no + 2,
+                    response,
+                    response_ts,
+                    query_id,
+                ),
+                (session_ts, session_id),
+            ]
+            for stmt, datum in zip(statements, data):
+                await cur.execute(stmt, datum)
+
+            if citation_ids:
+                await cur.executemany(
+                    INSERT_CITATIONS,
+                    [
+                        (response_id, cid, seq + 1)
+                        for seq, cid in enumerate(citation_ids)
+                    ],
+                )
+
+            await conn.commit()
+        except Exception:
+            await conn.rollback()
+            raise
+
     q = Message(
         id=query_id,
         session_id=session_id,
