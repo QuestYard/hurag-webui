@@ -673,7 +673,7 @@ def start():
     ui.run(
         title="HuRAG WebUI - A ChatBot [DEV]",
         host="0.0.0.0",
-        port=8082,
+        port=8088,
         reload=True,
         uvicorn_reload_dirs=src_dir,
         favicon=asset("favicon.ico"),
