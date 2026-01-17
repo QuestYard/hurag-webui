@@ -9,13 +9,7 @@ from . import conf
 T = TypeVar("T", bound=Callable[..., Coroutine[Any, Any, Any]])
 
 _pool: aiomysql.Pool | None = None
-_pool_lock: asyncio.Lock | None = None
-
-async def _get_lock() -> asyncio.Lock:
-    global _pool_lock
-    if _pool_lock is None:
-        _pool_lock = asyncio.Lock()
-    return _pool_lock
+_pool_lock: asyncio.Lock = asyncio.Lock()
 
 async def get_pool() -> aiomysql.Pool:
     """Get or create the database connection pool."""
@@ -24,8 +18,7 @@ async def get_pool() -> aiomysql.Pool:
     if _pool is not None:
         return _pool
 
-    lock = await _get_lock()
-    async with lock:
+    async with _pool_lock:
         if _pool is not None:
             return _pool
         _pool = await aiomysql.create_pool(
@@ -35,6 +28,9 @@ async def get_pool() -> aiomysql.Pool:
             password=conf.mariadb.password,
             db=conf.mariadb.database,
             autocommit=False,
+            minsize=1,
+            maxsize=10,
+            pool_recycle=3600,
         )
 
     return _pool
@@ -280,4 +276,4 @@ async def transact(
             return rowcount
         except Exception as e:
             await conn.rollback()
-            raise e
+            raise
