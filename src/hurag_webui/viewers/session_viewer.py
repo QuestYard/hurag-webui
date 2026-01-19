@@ -261,7 +261,7 @@ async def session_browser(user_id: str):
             )
         await asyncio.sleep(0.05)  # allow UI to update
         if retriever is None or session_ids is None:
-            retriever, session_ids = build_index_for_user(user_id)
+            retriever, session_ids = await build_index_for_user(user_id)
         results = search_sessions(
             retriever, session_ids, keyword, top_k=len(session_ids)
         )

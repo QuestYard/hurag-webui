@@ -4,7 +4,7 @@ from .tokenizer import tokenize, parallel_tokenize
 import bm25s
 
 
-def build_index_for_user(
+async def build_index_for_user(
     user_id: str,
     batch_size: int = 100,
 ) -> tuple[bm25s.BM25, list[str]]:

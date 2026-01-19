@@ -1,5 +1,4 @@
-from . import logger
-from .dbs import lifespan
+from . import logger, hurag_conf
 from .models import User, Citation
 from .services import login
 from .viewers import user_manager, scroll_to_bottom, show_citations
@@ -38,6 +37,35 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
 # --- FastAPI App Setup ---
+
+from .clients import chat_client
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # startup, create a chat completion client
+    logger.info(f"Starting up HuRAG WebUI App...")
+
+    base_url = os.getenv(f"{hurag_conf.llm.generation}_BASE_URL")
+    api_key = os.getenv(f"{hurag_conf.llm.generation}_API_KEY")
+    model = os.getenv(f"{hurag_conf.llm.generation}_MODEL")
+
+    try:
+        chat_client.startup(base_url, api_key, model)
+        logger.info("Lifespan chat completions client is created.")
+
+        yield
+
+    except Exception as e:
+        logger.error(f"Failed to startup HuRAG WebUI APP: {e!r}")
+        raise
+    finally:
+        from . import dbs
+        logger.info("Closing database connection pool...")
+        await dbs.close_pool()
+        logger.info("Closing chat completions client...")
+        await chat_client.shutdown()
+        logger.info("HuRAG WebUI App shutdown complete.")
 
 app = FastAPI(lifespan=lifespan)
 
@@ -670,6 +698,30 @@ async def root():
 # --- Development Server Entry Point ---
 def start():
     """Development server entry point"""
+    # Register startup and shutdown handlers for DEV mode
+    async def dev_startup():
+        logger.info(f"Starting up HuRAG WebUI App [DEV]...")
+        base_url = os.getenv(f"{hurag_conf.llm.generation}_BASE_URL")
+        api_key = os.getenv(f"{hurag_conf.llm.generation}_API_KEY")
+        model = os.getenv(f"{hurag_conf.llm.generation}_MODEL")
+        try:
+            chat_client.startup(base_url, api_key, model)
+            logger.info("Chat completions client is created.")
+        except Exception as e:
+            logger.error(f"Failed to startup HuRAG WebUI App [DEV]: {e!r}")
+            raise
+
+    async def dev_shutdown():
+        from . import dbs
+        logger.info("Closing database connection pool...")
+        await dbs.close_pool()
+        logger.info("Closing chat completions client...")
+        await chat_client.shutdown()
+        logger.info("HuRAG WebUI App [DEV] exited.")
+
+    ui_app.on_startup(dev_startup)
+    ui_app.on_shutdown(dev_shutdown)
+
     ui.run(
         title="HuRAG WebUI - A ChatBot [DEV]",
         host="0.0.0.0",

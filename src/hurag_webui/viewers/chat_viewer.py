@@ -145,7 +145,8 @@ async def chat_with_backend(
             - The message of the bot response.
             - The timestamp of the bot response.
     """
-    from .. import conf, chat_params
+    from .. import conf #, chat_params
+    from ..clients import chat_client
     from hurag.llm import chat, extract_chunk
     from httpx import RemoteProtocolError
     import mdformat
@@ -176,12 +177,11 @@ async def chat_with_backend(
         bot_msg_md = await display_bot_message("")
         try:
             response = await chat(
-                model=chat_params["model"],
+                model=chat_client.model,
                 prompt=prompt,
                 system_prompt=system_prompt,
                 history_messages=history[hist_limit:] if hist_limit else history,
-                base_url=chat_params["base_url"],
-                api_key=chat_params["api_key"],
+                client=chat_client.client,
                 temperature=temperature,
                 stream=True,
                 timeout=timeout,
