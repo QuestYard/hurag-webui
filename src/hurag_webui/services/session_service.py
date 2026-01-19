@@ -296,20 +296,20 @@ async def generate_session_title(query: str, max_length: int = 20) -> str:
     title = query.strip()
     if len(title) > max_length:
         from hurag.llm import chat, extract_response
-        from .. import chat_params
+        # from .. import chat_params
+        from ..clients import chat_client
 
         system_prompt = (
             "你是一名助手，需根据用户的查询生成简洁且相关的会话标题。"
             "请输出能抓住查询核心、字数精炼的标题。"
         )
         response = await chat(
-            model=chat_params["model"],
+            model=chat_client.model,
             prompt=(
                 f"基于以下用户查询生成一个不超过 {max_length} 字的简洁标题：{query}"
             ),
             system_prompt=system_prompt,
-            base_url=chat_params["base_url"],
-            api_key=chat_params["api_key"],
+            client=chat_client.client,
             temperature=0.5,
             stream=False,
             timeout=30,
