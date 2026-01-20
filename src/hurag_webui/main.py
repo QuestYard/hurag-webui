@@ -70,16 +70,22 @@ async def _shutdown_app(env_label: str | None = None) -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    startup_successful = False
     try:
         await _startup_app()
+        startup_successful = True
 
         yield
 
-        await _shutdown_app()
-
     except Exception as e:
-        logger.error(f"Failed to startup HuRAG WebUI App: {e!r}")
+        if not startup_successful:
+            logger.error(f"Failed to startup HuRAG WebUI App: {e!r}")
+        else:
+            logger.error(f"Error during HuRAG WebUI App runtime: {e!r}")
         raise
+    finally:
+        if startup_successful:
+            await _shutdown_app()
 
 app = FastAPI(lifespan=lifespan)
 
