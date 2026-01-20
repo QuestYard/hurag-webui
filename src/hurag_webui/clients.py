@@ -33,6 +33,10 @@ class LifespanClient:
             # If shutdown already in progress, get the event to wait on
             if self._shutdown_in_progress:
                 shutdown_event = self._shutdown_complete_event
+                # Event should exist if shutdown is in progress
+                if shutdown_event is None:
+                    # Should not happen, but handle gracefully
+                    return
             elif self.client is not None:
                 # Start shutdown
                 should_perform_shutdown = True
@@ -55,8 +59,9 @@ class LifespanClient:
         try:
             await client_to_close.close()
         finally:
-            # Mark shutdown as complete
+            # Notify all waiters first
             shutdown_event.set()
+            # Then clear the shutdown state
             async with self._lock:
                 self._shutdown_in_progress = False
                 self._shutdown_complete_event = None
