@@ -16,24 +16,27 @@ class LifespanClient:
     def startup(self, base_url, api_key, model):
         from hurag.llm import create_client
         with self._lock:
+            # Check if shutdown is in progress
             if self._shutdown_event is not None and not self._shutdown_event.is_set():
                 raise RuntimeError("Cannot start client while shutdown is in progress")
-            self._shutdown_event = None  # Reset for potential future shutdown
+            # It's safe to reset now - either no shutdown event exists, or it's already complete
+            self._shutdown_event = None
             self.model = model
             self.client = create_client(base_url=base_url, api_key=api_key)
 
     async def shutdown(self):
-        shutdown_event = None
         client_to_close = None
         
         with self._lock:
+            shutdown_event = self._shutdown_event
             # If shutdown is already in progress, wait for it
-            if self._shutdown_event is not None and not self._shutdown_event.is_set():
-                shutdown_event = self._shutdown_event
+            if shutdown_event is not None and not shutdown_event.is_set():
+                # Already shutting down, wait outside the lock
+                pass
             else:
                 # Start a new shutdown
-                self._shutdown_event = asyncio.Event()
-                shutdown_event = self._shutdown_event
+                shutdown_event = asyncio.Event()
+                self._shutdown_event = shutdown_event
                 self.model = None
                 client_to_close = self.client
                 self.client = None
