@@ -41,31 +41,45 @@ from fastapi.staticfiles import StaticFiles
 from .clients import chat_client
 from contextlib import asynccontextmanager
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # startup, create a chat completion client
-    logger.info(f"Starting up HuRAG WebUI App...")
+async def _startup_app(env_label: str | None = None) -> None:
+    env_label = f" [{env_label.upper()}]" if env_label else ""
+    logger.info(f"Starting up HuRAG WebUI App{env_label} ...")
 
     base_url = os.getenv(f"{hurag_conf.llm.generation}_BASE_URL")
     api_key = os.getenv(f"{hurag_conf.llm.generation}_API_KEY")
     model = os.getenv(f"{hurag_conf.llm.generation}_MODEL")
 
+    if not base_url:
+        raise ValueError(f"Missing {hurag_conf.llm.generation}_BASE_URL")
+    if not api_key:
+        raise ValueError(f"Missing {hurag_conf.llm.generation}_API_KEY")
+    if not model:
+        raise ValueError(f"Missing {hurag_conf.llm.generation}_MODEL")
+
+    chat_client.startup(base_url, api_key, model)
+    logger.info("Lifespan chat completions client is created.")
+
+async def _shutdown_app(env_label: str | None = None) -> None:
+    env_label = f" [{env_label.upper()}]" if env_label else ""
+    from . import dbs
+    logger.info("Closing database connection pool...")
+    await dbs.close_pool()
+    logger.info("Closing chat completions client...")
+    await chat_client.shutdown()
+    logger.info(f"HuRAG WebUI App{env_label} shutdown complete.")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     try:
-        chat_client.startup(base_url, api_key, model)
-        logger.info("Lifespan chat completions client is created.")
+        await _startup_app()
 
         yield
 
+        await _shutdown_app()
+
     except Exception as e:
-        logger.error(f"Failed to startup HuRAG WebUI APP: {e!r}")
+        logger.error(f"Failed to startup HuRAG WebUI App: {e!r}")
         raise
-    finally:
-        from . import dbs
-        logger.info("Closing database connection pool...")
-        await dbs.close_pool()
-        logger.info("Closing chat completions client...")
-        await chat_client.shutdown()
-        logger.info("HuRAG WebUI App shutdown complete.")
 
 app = FastAPI(lifespan=lifespan)
 
@@ -700,24 +714,14 @@ def start():
     """Development server entry point"""
     # Register startup and shutdown handlers for DEV mode
     async def dev_startup():
-        logger.info(f"Starting up HuRAG WebUI App [DEV]...")
-        base_url = os.getenv(f"{hurag_conf.llm.generation}_BASE_URL")
-        api_key = os.getenv(f"{hurag_conf.llm.generation}_API_KEY")
-        model = os.getenv(f"{hurag_conf.llm.generation}_MODEL")
         try:
-            chat_client.startup(base_url, api_key, model)
-            logger.info("Chat completions client is created.")
+            await _startup_app("DEV")
         except Exception as e:
             logger.error(f"Failed to startup HuRAG WebUI App [DEV]: {e!r}")
             raise
 
     async def dev_shutdown():
-        from . import dbs
-        logger.info("Closing database connection pool...")
-        await dbs.close_pool()
-        logger.info("Closing chat completions client...")
-        await chat_client.shutdown()
-        logger.info("HuRAG WebUI App [DEV] exited.")
+        await _shutdown_app("DEV")
 
     ui_app.on_startup(dev_startup)
     ui_app.on_shutdown(dev_shutdown)
