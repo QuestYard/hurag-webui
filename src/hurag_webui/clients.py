@@ -3,7 +3,8 @@ import asyncio
 class LifespanClient:
     def __init__(self) -> None:
         self._lock = asyncio.Lock()
-        self._shutdown_event = None  # Will be created on first shutdown
+        self._shutdown_in_progress = False
+        self._shutdown_complete_event = None
         self.model = None
         self.client = None
 
@@ -17,38 +18,36 @@ class LifespanClient:
         from hurag.llm import create_client
         async with self._lock:
             # Check if shutdown is in progress
-            if self._shutdown_event is not None and not self._shutdown_event.is_set():
+            if self._shutdown_in_progress:
                 raise RuntimeError("Cannot start client while shutdown is in progress")
-            # Safe to reset - if event exists, it's already set and all waiters have been notified
-            # The asyncio.Event.wait() returns immediately for all waiters once set() is called
-            self._shutdown_event = None
+            # Proceed with startup
             self.model = model
             self.client = create_client(base_url=base_url, api_key=api_key)
 
     async def shutdown(self):
         client_to_close = None
         shutdown_event = None
-        should_shutdown = False
+        should_perform_shutdown = False
         
         async with self._lock:
-            # Check if shutdown is already in progress
-            if self._shutdown_event is not None and not self._shutdown_event.is_set():
-                # Wait for the ongoing shutdown
-                shutdown_event = self._shutdown_event
+            # If shutdown already in progress, get the event to wait on
+            if self._shutdown_in_progress:
+                shutdown_event = self._shutdown_complete_event
             elif self.client is not None:
-                # We need to perform the shutdown
-                should_shutdown = True
+                # Start shutdown
+                should_perform_shutdown = True
+                self._shutdown_in_progress = True
                 shutdown_event = asyncio.Event()
-                self._shutdown_event = shutdown_event
+                self._shutdown_complete_event = shutdown_event
                 self.model = None
                 client_to_close = self.client
                 self.client = None
             else:
-                # No client and no shutdown in progress - nothing to do
+                # No client to shutdown
                 return
         
-        # If we're waiting for an existing shutdown, do so outside the lock
-        if not should_shutdown:
+        # Wait for ongoing shutdown outside the lock
+        if not should_perform_shutdown:
             await shutdown_event.wait()
             return
         
@@ -56,7 +55,11 @@ class LifespanClient:
         try:
             await client_to_close.close()
         finally:
+            # Mark shutdown as complete
             shutdown_event.set()
+            async with self._lock:
+                self._shutdown_in_progress = False
+                self._shutdown_complete_event = None
 
 # Global lifespan chat completions client
 chat_client = LifespanClient()
