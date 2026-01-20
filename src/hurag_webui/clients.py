@@ -26,6 +26,7 @@ class LifespanClient:
 
     async def shutdown(self):
         client_to_close = None
+        shutdown_event = None
         
         with self._lock:
             shutdown_event = self._shutdown_event
@@ -43,13 +44,13 @@ class LifespanClient:
         
         # If we're waiting for an existing shutdown, do so outside the lock
         if client_to_close is None:
-            await shutdown_event.wait()
+            if shutdown_event is not None:
+                await shutdown_event.wait()
             return
         
         # Perform the actual shutdown outside the lock
         try:
-            if client_to_close:
-                await client_to_close.close()
+            await client_to_close.close()
         finally:
             shutdown_event.set()
 
