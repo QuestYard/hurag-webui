@@ -27,15 +27,21 @@ class LifespanClient:
     async def shutdown(self):
         client_to_close = None
         shutdown_event = None
+        should_shutdown = False
         
         with self._lock:
-            shutdown_event = self._shutdown_event
-            # If shutdown is already in progress, wait for it
-            if shutdown_event is not None and not shutdown_event.is_set():
-                # Already shutting down, wait outside the lock
-                pass
+            # Check if there's no client to shutdown
+            if self.client is None:
+                # Nothing to shutdown
+                return
+            
+            # Check if shutdown is already in progress
+            if self._shutdown_event is not None and not self._shutdown_event.is_set():
+                # Wait for the ongoing shutdown
+                shutdown_event = self._shutdown_event
             else:
-                # Start a new shutdown
+                # We need to perform the shutdown
+                should_shutdown = True
                 shutdown_event = asyncio.Event()
                 self._shutdown_event = shutdown_event
                 self.model = None
@@ -43,9 +49,8 @@ class LifespanClient:
                 self.client = None
         
         # If we're waiting for an existing shutdown, do so outside the lock
-        if client_to_close is None:
-            if shutdown_event is not None:
-                await shutdown_event.wait()
+        if not should_shutdown:
+            await shutdown_event.wait()
             return
         
         # Perform the actual shutdown outside the lock
