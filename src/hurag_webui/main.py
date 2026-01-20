@@ -56,7 +56,7 @@ async def _startup_app(env_label: str | None = None) -> None:
     if not model:
         raise ValueError(f"Missing {hurag_conf.llm.generation}_MODEL")
 
-    chat_client.startup(base_url, api_key, model)
+    await chat_client.startup(base_url, api_key, model)
     logger.info("Lifespan chat completions client is created.")
 
 async def _shutdown_app(env_label: str | None = None) -> None:

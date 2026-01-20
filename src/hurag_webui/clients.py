@@ -1,21 +1,21 @@
 import asyncio
-import threading
 
 class LifespanClient:
     def __init__(self) -> None:
-        self._lock = threading.RLock()
+        self._lock = asyncio.Lock()
         self._shutdown_event = None  # Will be created on first shutdown
         self.model = None
         self.client = None
 
     @property
     def started(self) -> bool:
-        with self._lock:
-            return self.client is not None
+        # Note: This property is not lock-protected and may have race conditions
+        # if checked during startup/shutdown. For accurate state, hold the lock.
+        return self.client is not None
 
-    def startup(self, base_url, api_key, model):
+    async def startup(self, base_url, api_key, model):
         from hurag.llm import create_client
-        with self._lock:
+        async with self._lock:
             # Check if shutdown is in progress
             if self._shutdown_event is not None and not self._shutdown_event.is_set():
                 raise RuntimeError("Cannot start client while shutdown is in progress")
@@ -30,7 +30,7 @@ class LifespanClient:
         shutdown_event = None
         should_shutdown = False
         
-        with self._lock:
+        async with self._lock:
             # Check if shutdown is already in progress
             if self._shutdown_event is not None and not self._shutdown_event.is_set():
                 # Wait for the ongoing shutdown
