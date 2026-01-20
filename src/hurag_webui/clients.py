@@ -19,7 +19,8 @@ class LifespanClient:
             # Check if shutdown is in progress
             if self._shutdown_event is not None and not self._shutdown_event.is_set():
                 raise RuntimeError("Cannot start client while shutdown is in progress")
-            # It's safe to reset now - either no shutdown event exists, or it's already complete
+            # Safe to reset - if event exists, it's already set and all waiters have been notified
+            # The asyncio.Event.wait() returns immediately for all waiters once set() is called
             self._shutdown_event = None
             self.model = model
             self.client = create_client(base_url=base_url, api_key=api_key)
@@ -30,16 +31,11 @@ class LifespanClient:
         should_shutdown = False
         
         with self._lock:
-            # Check if there's no client to shutdown
-            if self.client is None:
-                # Nothing to shutdown
-                return
-            
             # Check if shutdown is already in progress
             if self._shutdown_event is not None and not self._shutdown_event.is_set():
                 # Wait for the ongoing shutdown
                 shutdown_event = self._shutdown_event
-            else:
+            elif self.client is not None:
                 # We need to perform the shutdown
                 should_shutdown = True
                 shutdown_event = asyncio.Event()
@@ -47,6 +43,9 @@ class LifespanClient:
                 self.model = None
                 client_to_close = self.client
                 self.client = None
+            else:
+                # No client and no shutdown in progress - nothing to do
+                return
         
         # If we're waiting for an existing shutdown, do so outside the lock
         if not should_shutdown:
