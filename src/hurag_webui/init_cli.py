@@ -7,11 +7,18 @@ async def init_db():
     import warnings
     from aiomysql import Warning as mysql_warning
     warnings.filterwarnings("ignore", category=mysql_warning)
-    from . import logger
+    from . import logger, conf
     from .constants import INIT_RSS_SCRIPTS
-    from .dbs import get_pool, close_pool
+    from hurag.dss import rss
 
-    pool = await get_pool()
+    pool = await rss.get_pool(
+        host=conf.mariadb.host,
+        port=conf.mariadb.port,
+        user=conf.mariadb.user,
+        password=conf.mariadb.password,
+        db=conf.mariadb.db,
+        pool_name="webui",
+    )
     try:
         async with pool.acquire() as conn, conn.cursor() as cur:
             for stmt in INIT_RSS_SCRIPTS:
@@ -27,7 +34,7 @@ async def init_db():
         print("初始化数据库失败，请查看日志。")
         raise e
     finally:
-        await close_pool()
+        await rss.close_pool()
 
 def main():
     import asyncio

@@ -1,5 +1,5 @@
 [Unit]
-Description=HuRAG-Server WebUI Service 2.0
+Description=HuRAG-Server WebUI Service
 After=network.target
 
 [Service]

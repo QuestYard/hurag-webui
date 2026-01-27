@@ -38,35 +38,45 @@ from fastapi.staticfiles import StaticFiles
 
 # --- FastAPI App Setup ---
 
-from .clients import chat_client
 from contextlib import asynccontextmanager
 
 async def _startup_app(env_label: str | None = None) -> None:
     env_label = f" [{env_label.upper()}]" if env_label else ""
     logger.info(f"Starting up HuRAG WebUI App{env_label} ...")
 
+    logger.info("Checking configurations ...")
     base_url = os.getenv(f"{hurag_conf.llm.generation}_BASE_URL")
     api_key = os.getenv(f"{hurag_conf.llm.generation}_API_KEY")
-    model = os.getenv(f"{hurag_conf.llm.generation}_MODEL")
+    from . import model_name
 
     if not base_url:
         raise ValueError(f"Missing {hurag_conf.llm.generation}_BASE_URL")
     if not api_key:
         raise ValueError(f"Missing {hurag_conf.llm.generation}_API_KEY")
-    if not model:
+    if not model_name:
         raise ValueError(f"Missing {hurag_conf.llm.generation}_MODEL")
 
-    chat_client.startup(base_url, api_key, model)
-    logger.info("Lifespan chat completions client is created.")
+    logger.info("Create database connection pool")
+    from hurag.dss import rss
+    pool = await rss.get_pool(
+        host=conf.mariadb.host,
+        port=conf.mariadb.port,
+        user=conf.mariadb.user,
+        password=conf.mariadb.password,
+        db=conf.mariadb.db,
+        pool_name="webui",
+    )
+    logger.info(f"HuRAG WebUI App{env_label} startup completed.")
 
 async def _shutdown_app(env_label: str | None = None) -> None:
     env_label = f" [{env_label.upper()}]" if env_label else ""
-    from . import dbs
+    from hurag.dss import rss
     logger.info("Closing database connection pool...")
-    await dbs.close_pool()
+    await rss.close_pool()
+    from hurag.llm import close_oa_client
     logger.info("Closing chat completions client...")
-    await chat_client.shutdown()
-    logger.info(f"HuRAG WebUI App{env_label} shutdown complete.")
+    await close_oa_client()
+    logger.info(f"HuRAG WebUI App{env_label} shutdown completed.")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -739,7 +749,7 @@ def start():
         reload=True,
         uvicorn_reload_dirs=src_dir,
         favicon=asset("favicon.ico"),
-        storage_secret=os.environ["STORAGE_SECRET"],
+        storage_secret=storage_secret,
     )
 
 
