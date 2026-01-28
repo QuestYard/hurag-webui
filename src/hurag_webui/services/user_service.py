@@ -1,40 +1,54 @@
-from .. import dbs, logger, conf, generate_id
+from .. import db_pool_name, logger, conf, generate_id
 from ..models import User
+from hurag.dss import rss
 
 async def get_user(account: str) -> User | None:
-    resp = await dbs.query(
+    resp = await rss.query(
         "SELECT id, account, username, user_path FROM users WHERE account = %s",
         (account,),
+        pool_name=db_pool_name,
     )
     return User().from_db_response(resp[0]) if resp else None
 
 
 async def get_user_by_id(id: str) -> User | None:
-    resp = await dbs.query(
-        "SELECT id, account, username, user_path FROM users WHERE id = %s", (id,)
+    resp = await rss.query(
+        "SELECT id, account, username, user_path FROM users WHERE id = %s",
+        (id,),
+        pool_name=db_pool_name,
     )
     return User().from_db_response(resp[0]) if resp else None
 
 
 async def is_account_exist(account: str) -> bool:
-    resp = await dbs.query("SELECT 1 FROM users WHERE account = %s", (account,))
+    resp = await rss.query(
+        "SELECT 1 FROM users WHERE account = %s",
+        (account,),
+        pool_name=db_pool_name,
+    )
     return bool(resp)
 
 
 async def is_user_id_exist(user_id: str) -> bool:
-    resp = await dbs.query("SELECT 1 FROM users WHERE id = %s", (user_id,))
+    resp = await rss.query(
+        "SELECT 1 FROM users WHERE id = %s",
+        (user_id,),
+        pool_name=db_pool_name,
+    )
     return bool(resp)
 
 
 async def is_user_valid(user_id: str, account: str) -> bool:
-    resp = await dbs.query(
-        "SELECT 1 FROM users WHERE id = %s AND account = %s", (user_id, account)
+    resp = await rss.query(
+        "SELECT 1 FROM users WHERE id = %s AND account = %s",
+        (user_id, account),
+        pool_name=db_pool_name,
     )
     return bool(resp)
 
 
 async def upsert_user(account, username, user_path) -> User | None:
-    resp = await dbs.dml(
+    resp = await rss.dml(
         """
         INSERT INTO users (id, account, username, user_path)
         VALUES (%s, %s, %s, %s)
@@ -43,6 +57,7 @@ async def upsert_user(account, username, user_path) -> User | None:
             user_path = VALUES(user_path)
         """,
         (generate_id(), account, username, user_path),
+        pool_name=db_pool_name,
     )
     return await get_user(account)
 

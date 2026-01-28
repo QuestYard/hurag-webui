@@ -209,3 +209,10 @@ __marimo__/
 # Vim
 *.swp
 tags
+
+# Others
+hurag.yaml
+embedding-service.yaml
+webui-config.yaml
+*.env
+.nicegui/
