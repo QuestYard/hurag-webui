@@ -1,4 +1,4 @@
-from . import logger, hurag_conf
+from . import conf, logger, hurag_conf, db_pool_name, oa_client_name, oa_model_name
 from .models import User, Citation
 from .services import login
 from .viewers import user_manager, scroll_to_bottom, show_citations
@@ -47,25 +47,28 @@ async def _startup_app(env_label: str | None = None) -> None:
     logger.info("Checking configurations ...")
     base_url = os.getenv(f"{hurag_conf.llm.generation}_BASE_URL")
     api_key = os.getenv(f"{hurag_conf.llm.generation}_API_KEY")
-    from . import model_name
-
     if not base_url:
         raise ValueError(f"Missing {hurag_conf.llm.generation}_BASE_URL")
     if not api_key:
         raise ValueError(f"Missing {hurag_conf.llm.generation}_API_KEY")
-    if not model_name:
+    if not oa_model_name:
         raise ValueError(f"Missing {hurag_conf.llm.generation}_MODEL")
 
-    logger.info("Create database connection pool")
+    logger.info("Creating database connection pool ...")
     from hurag.dss import rss
-    pool = await rss.get_pool(
+    await rss.get_pool(
         host=conf.mariadb.host,
         port=conf.mariadb.port,
         user=conf.mariadb.user,
         password=conf.mariadb.password,
-        db=conf.mariadb.db,
-        pool_name="webui",
+        db=conf.mariadb.database,
+        pool_name=db_pool_name,
     )
+
+    logger.info("Creating LLM chat client ...")
+    from hurag.llm import get_oa_client
+    await get_oa_client(client_name=oa_client_name)
+
     logger.info(f"HuRAG WebUI App{env_label} startup completed.")
 
 async def _shutdown_app(env_label: str | None = None) -> None:
@@ -446,7 +449,7 @@ async def root():
                 "id": generate_id(),
                 "session_id": temp_session_id,
                 "seq_no": len(ui_app.storage.client["messages"]) + 1,
-                "role": "bot",
+                "role": "assistant",
                 "content": response,
                 "created_ts": response_ts,
             }
@@ -668,24 +671,14 @@ async def root():
     send_btn.on_click(send_message)
 
     # --- Keyboard event handler for the textarea ---
-    async def handle_key(e: KeyEventArguments):
-        if e.key.enter:
-            if not e.modifiers.shift and e.action.keydown:
-                await send_message()
-
-    ui.keyboard(
-        on_key=handle_key,
-        active=True,
-        repeating=False,
-        ignore=["input", "select", "button"],
-    ).on(
-        "key",
-        lambda: None,
+    text_input.on(
+        "keydown.enter",
+        lambda: send_message(),
         js_handler="""
         (e) => {
-            if (e.key === 'Enter' && !e.shiftKey && e.action === 'keydown') {
-                    emit(e);
-                    e.event.preventDefault();
+            if (!e.shiftKey && !e.isComposing) {
+                emit(e);
+                e.preventDefault();
             }
         }""",
     )

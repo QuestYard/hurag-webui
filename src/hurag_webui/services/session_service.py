@@ -1,5 +1,12 @@
-from ..models import Session, Message
+from __future__ import annotations
+from typing import TYPE_CHECKING
 
+if TYPE_CHECKING:
+    from openai import AsyncOpenAI
+
+from .. import db_pool_name, oa_client_name, oa_model_name
+from ..models import Session, Message
+from hurag.llm import with_oa_client, chat, extract_response
 from datetime import datetime
 
 
@@ -16,10 +23,10 @@ async def load_session_by_id(session_id: str) -> Session | None:
     if not session_id:
         return None
 
-    from .. import dbs
+    from hurag.dss import rss
 
     query = "SELECT id, title, created_ts, user_id FROM sessions WHERE id = %s"
-    rows = await dbs.query(query, (session_id,))
+    rows = await rss.query(query, (session_id,), pool_name=db_pool_name)
     if not rows:
         return None
 
@@ -41,14 +48,14 @@ async def load_sessions_by_user(user_id: str, limit: int = 100) -> list[Session]
     if not user_id:
         return []
 
-    from .. import dbs
+    from hurag.dss import rss
 
     query = """
     SELECT id, title, created_ts, user_id FROM sessions WHERE user_id = %s
     ORDER BY created_ts DESC
     """
     query += f"LIMIT {limit}" if limit > 0 else ""
-    rows = await dbs.query(query, (user_id,))
+    rows = await rss.query(query, (user_id,), pool_name=db_pool_name)
     sessions = [Session().from_db_response(row) for row in rows]
 
     return sessions
@@ -83,7 +90,7 @@ async def upsert_session(
             - The Message object for the user query.
             - The Message object for the LLM response.
     """
-    from .. import dbs
+    from hurag.dss import rss
     from .. import generate_id
 
     CREATE_NEW_SESSION = """
@@ -126,7 +133,7 @@ async def upsert_session(
             data.append(
                 [(response_id, cid, seq + 1) for seq, cid in enumerate(citation_ids)]
             )
-        await dbs.transact(statements, data)
+        await rss.transact(statements, data, pool_name=db_pool_name)
         s = Session(id=session_id, title=title, created_ts=session_ts, user_id=user_id)
         q = Message(
             id=query_id,
@@ -148,7 +155,7 @@ async def upsert_session(
         )
         return s, q, r
     # update existed session
-    pool = await dbs.get_pool()
+    pool = await rss.get_pool(pool_name=db_pool_name)
     async with pool.acquire() as conn, conn.cursor() as cur:
         await conn.begin()
         try:
@@ -230,7 +237,7 @@ async def load_messages_by_session(session_id: str) -> list[Message]:
     if not session_id:
         return []
 
-    from .. import dbs
+    from hurag.dss import rss
 
     query = """
     SELECT
@@ -247,7 +254,7 @@ async def load_messages_by_session(session_id: str) -> list[Message]:
     WHERE session_id = %s
     ORDER BY seq_no ASC
     """
-    rows = await dbs.query(query, (session_id,))
+    rows = await rss.query(query, (session_id,), pool_name=db_pool_name)
     messages = [Message().from_db_response(row) for row in rows]
 
     return messages
@@ -265,7 +272,7 @@ async def load_citation_ids_by_session(session_id: str) -> dict[str, str]:
     if not session_id:
         return {}
 
-    from .. import dbs
+    from hurag.dss import rss
 
     query = """
     SELECT qs.query_id, qs.segment_id
@@ -274,15 +281,19 @@ async def load_citation_ids_by_session(session_id: str) -> dict[str, str]:
     WHERE sm.session_id = %s
     ORDER BY qs.seq_no ASC
     """
-    rows = await dbs.query(query, (session_id,))
+    rows = await rss.query(query, (session_id,), pool_name=db_pool_name)
     citation_ids = {}
     for qid, sid in rows:
         citation_ids.setdefault(qid, []).append(sid)
 
     return citation_ids
 
-
-async def generate_session_title(query: str, max_length: int = 20) -> str:
+@with_oa_client(client_name=oa_client_name)
+async def generate_session_title(
+    query: str,
+    max_length: int = 20,
+    oaclient: AsyncOpenAI | None = None,
+) -> str:
     """
     Generate a session title based on the user query.
 
@@ -295,65 +306,72 @@ async def generate_session_title(query: str, max_length: int = 20) -> str:
     """
     title = query.strip()
     if len(title) > max_length:
-        from hurag.llm import chat, extract_response
-        # from .. import chat_params
-        from ..clients import chat_client
-
         system_prompt = (
             "你是一名助手，需根据用户的查询生成简洁且相关的会话标题。"
             "请输出能抓住查询核心、字数精炼的标题。"
         )
         response = await chat(
-            model=chat_client.model,
+            model=oa_model_name,
             prompt=(
                 f"基于以下用户查询生成一个不超过 {max_length} 字的简洁标题：{query}"
             ),
             system_prompt=system_prompt,
-            client=chat_client.client,
+            client=oaclient,
             temperature=0.5,
             stream=False,
-            timeout=30,
+            timeout=30.0,
         )
         title = extract_response(response).strip()
     return title
 
 
 async def dislike_message(message_id: str, dislikes: int):
-    from .. import dbs
+    from hurag.dss import rss
 
-    await dbs.dml(
+    await rss.dml(
         "UPDATE session_messages SET dislikes = %s WHERE id = %s",
         (dislikes, message_id),
+        pool_name=db_pool_name,
     )
 
 
 async def like_message(message_id: str, likes: int):
-    from .. import dbs
+    from hurag.dss import rss
 
-    await dbs.dml(
+    await rss.dml(
         "UPDATE session_messages SET likes = %s WHERE id = %s",
         (likes, message_id),
+        pool_name=db_pool_name,
     )
 
 
 async def update_session_title(session_id: str, title: str):
-    from .. import dbs
+    from hurag.dss import rss
 
-    await dbs.dml("UPDATE sessions SET title = %s WHERE id = %s", (title, session_id))
+    await rss.dml(
+        "UPDATE sessions SET title = %s WHERE id = %s",
+        (title, session_id),
+        pool_name=db_pool_name,
+    )
 
 
 async def delete_session_by_id(session_id: str):
-    from .. import dbs
+    from hurag.dss import rss
 
-    await dbs.dml("DELETE FROM sessions WHERE id = %s", (session_id,))
+    await rss.dml(
+        "DELETE FROM sessions WHERE id = %s",
+        (session_id,),
+        pool_name=db_pool_name,
+    )
 
 
 async def pin_session_by_id(session_id: str):
-    from .. import dbs
+    from hurag.dss import rss
 
-    await dbs.dml(
+    await rss.dml(
         "UPDATE sessions SET created_ts = %s WHERE id = %s",
         (datetime.now(), session_id),
+        pool_name=db_pool_name,
     )
 
 
@@ -362,7 +380,7 @@ async def next_session_batch(
     last_session_id: str | None,
     batch_size: int = 10,
 ) -> list[tuple]:
-    from .. import dbs
+    from hurag.dss import rss
 
     query = """
         WITH last_msgs AS (
@@ -388,13 +406,13 @@ async def next_session_batch(
         params.append(last_session_id)
     query += " ORDER BY s.created_ts DESC LIMIT %s"
     params.append(batch_size)
-    rows = await dbs.query(query, tuple(params))
+    rows = await rss.query(query, tuple(params), pool_name=db_pool_name)
 
     return rows
 
 
 async def search_result_batch(results: list[tuple[str, float]]) -> list[tuple]:
-    from .. import dbs
+    from hurag.dss import rss
 
     if not results:
         return []
@@ -420,6 +438,6 @@ async def search_result_batch(results: list[tuple[str, float]]) -> list[tuple]:
         ORDER BY FIELD(s.id, {placeholders})
     """
     params = [x[0] for x in results] * 2
-    rows = await dbs.query(query, tuple(params))
+    rows = await rss.query(query, tuple(params), pool_name=db_pool_name)
 
     return rows

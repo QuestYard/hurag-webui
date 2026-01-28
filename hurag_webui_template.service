@@ -31,7 +31,7 @@ ExecStart=/path/to/virtualenv/bin/gunicorn hurag_webui.main:app \
     -b 0.0.0.0:8088 \
     --timeout 120 \
     --graceful-timeout 30 \
-    --log-level debug \
+    --log-level info \
     --capture-output \
     --access-logfile - \
     --error-logfile -

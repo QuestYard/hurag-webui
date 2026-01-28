@@ -4,6 +4,7 @@ __email__ = "154788733@qq.com"
 __url__=""
 __description__ = "HuRAG WebUI"
 
+import os
 import yaml
 import logging
 from dotenv import load_dotenv
@@ -18,9 +19,9 @@ from hurag.utilities import generate_id, dict_to_namespace
 conf = None
 logger = None
 org_path = hurag_conf.app.org_path
-
-import os
-model_name = os.getenv(f"{hurag_conf.llm.generation}_MODEL")
+db_pool_name = "webui"
+oa_client_name = "generation"
+oa_model_name = os.getenv(f"{hurag_conf.llm.generation}_MODEL")
 
 # -- Initialization --
 
@@ -71,7 +72,9 @@ __all__ = [
     "conf",
     "logger",
     "org_path",
-    "model_name",
+    "db_pool_name",
+    "oa_client_name",
+    "oa_model_name",
     "hurag_conf",
     "generate_id",
 ]

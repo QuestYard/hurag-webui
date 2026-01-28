@@ -3,6 +3,7 @@ from typing import Any, Literal, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from hurag.schemas import Knowledge
+    from openai import AsyncOpenAI
 
 from ..events import (
     Copy_response_clicked,
@@ -12,7 +13,8 @@ from ..events import (
     Download_response_clicked,
     Show_message_citations_clicked,
 )
-from .. import logger
+from .. import logger, conf, oa_client_name, oa_model_name
+from hurag.llm import with_oa_client, chat, extract_chunk
 
 from nicegui import ui
 from datetime import datetime
@@ -117,15 +119,17 @@ async def scroll_to_bottom(c):
     )
 
 
+@with_oa_client(client_name=oa_client_name)
 async def chat_with_backend(
     container: ui.column,
     mode: Literal["naive", "mix", "community", "global"] | None,
     message: str,
-    knowledge_list: list[Knowledge],    # list[dict[str, Any]],
+    knowledge_list: list[Knowledge],
     system_prompt: str | None = None,
     history: list | None = None,
     temperature: float | None = 0,
     timeout: int = 180,
+    oaclient: AsyncOpenAI | None = None,
 ) -> tuple[str, datetime]:
     """
     Chat with the backend LLM service and display the response.
@@ -139,15 +143,13 @@ async def chat_with_backend(
         history: The chat history.
         temperature: The temperature for the LLM.
         timeout: The timeout for the backend request.
+        oaclient: Placeholder for injecting an OpenAI client.
 
     Returns:
         A tuple containing:
             - The message of the bot response.
             - The timestamp of the bot response.
     """
-    from .. import conf #, chat_params
-    from ..clients import chat_client
-    from hurag.llm import chat, extract_chunk
     from httpx import RemoteProtocolError
     import mdformat
 
@@ -177,11 +179,11 @@ async def chat_with_backend(
         bot_msg_md = await display_bot_message("")
         try:
             response = await chat(
-                model=chat_client.model,
+                model=oa_model_name,
                 prompt=prompt,
                 system_prompt=system_prompt,
                 history_messages=history[hist_limit:] if hist_limit else history,
-                client=chat_client.client,
+                client=oaclient,
                 temperature=temperature,
                 stream=True,
                 timeout=timeout,

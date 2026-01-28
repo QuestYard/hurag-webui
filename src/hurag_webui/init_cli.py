@@ -7,7 +7,7 @@ async def init_db():
     import warnings
     from aiomysql import Warning as mysql_warning
     warnings.filterwarnings("ignore", category=mysql_warning)
-    from . import logger, conf
+    from . import logger, conf, db_pool_name
     from .constants import INIT_RSS_SCRIPTS
     from hurag.dss import rss
 
@@ -16,8 +16,8 @@ async def init_db():
         port=conf.mariadb.port,
         user=conf.mariadb.user,
         password=conf.mariadb.password,
-        db=conf.mariadb.db,
-        pool_name="webui",
+        db=conf.mariadb.database,
+        pool_name=db_pool_name,
     )
     try:
         async with pool.acquire() as conn, conn.cursor() as cur:
