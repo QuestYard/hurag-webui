@@ -124,7 +124,7 @@ async def chat_with_backend(
     container: ui.column,
     mode: Literal["naive", "mix", "community", "global"] | None,
     message: str,
-    knowledge_list: list[list[Knowledge, float]],
+    knowledge_list: list[tuple[Knowledge, float]],
     system_prompt: str | None = None,
     history: list | None = None,
     temperature: float | None = 0,
@@ -165,15 +165,6 @@ async def chat_with_backend(
     else:
         prompt = message
 
-    # HACK: Log context length
-    # _context_length(
-    #     mode=mode,
-    #     message=message,
-    #     knowledge_list=knowledge_list,
-    #     prompt=prompt,
-    #     history=history,
-    # )
-
     hist_limit = _CTX_SIZE_MAP[conf.services.ctx_size][1]
     with container:
         bot_msg_md = await display_bot_message("")
@@ -204,32 +195,3 @@ async def chat_with_backend(
 
         # bot_msg_md.set_content(mdformat.text(content))
     return content, datetime.now()
-
-
-# --- Inner function for testing ---
-def _context_length(
-    mode: str,
-    message: str,
-    knowledge_list: list[dict[str, Any]],
-    prompt: str,
-    history: list[dict[str, str]] | None,
-) -> int:
-    from .. import conf
-
-    """Calculate the context length of the prompt and history."""
-    length = len(prompt)
-    kn_limit = _CTX_SIZE_MAP[conf.services.ctx_size][0]
-    hs_limit = _CTX_SIZE_MAP[conf.services.ctx_size][1]
-    if history:
-        for h in history[hs_limit:] if hs_limit else history:
-            length += len(h["content"])
-    logger.debug("---- Debug Info: chat_with_backend ----")
-    logger.debug(f"{mode = }")
-    logger.debug(f"{message = }")
-    logger.debug(f"{len(history) = }")
-    logger.debug(f"{len(knowledge_list) = }")
-    logger.debug(f"{kn_limit = }, {hs_limit = }")
-    logger.debug(f"{len(prompt) = }")
-    logger.debug(f"{length = }")
-
-    return length
