@@ -42,7 +42,7 @@ RAG_PROMPT_TEMPLATE = """你是一名知识库问答助手，能够根据提供�
 
 def create_rag_prompt(
     query: str,
-    knowledge_list: list[Knowledge],    # list[dict[str, Any]],
+    knowledge_list: list[list[Knowledge, float]],    # list[dict[str, Any]],
     kn_limit: int | None = None,
 ) -> str:
     """

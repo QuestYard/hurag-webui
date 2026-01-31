@@ -124,7 +124,7 @@ async def chat_with_backend(
     container: ui.column,
     mode: Literal["naive", "mix", "community", "global"] | None,
     message: str,
-    knowledge_list: list[Knowledge],
+    knowledge_list: list[list[Knowledge, float]],
     system_prompt: str | None = None,
     history: list | None = None,
     temperature: float | None = 0,
